@@ -112,7 +112,8 @@ def missing_requirements():
 def ready(authorization: str | None = Header(None)):
     authenticate(authorization)
     missing = missing_requirements()
-    return {"ready": not missing, "missing": missing,
+    return {"service": "arabiflow", "protocol_version": 1,
+            "ready": not missing, "missing": missing,
             "note": "Configuration only; translation provider availability is not tested"}
 
 

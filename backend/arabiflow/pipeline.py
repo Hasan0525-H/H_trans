@@ -41,7 +41,9 @@ def append_localized(target_root, element):
     target_root.append(element)
 
 def translate_resources(root, translator, report):
+    """Generate values-ar and Arabic defaults, plus overwrite matching locale variants."""
     values = sorted(p for p in root.glob("res/values*") if p.is_dir() and p.name != "values-ar")
+    report["resource_directories"] = [p.name for p in values]
     preferred = [p for p in values if p.name == "values"]
     if not preferred:
         preferred = [p for p in values if p.name == "values-en"]
@@ -49,6 +51,7 @@ def translate_resources(root, translator, report):
         raise UnsupportedApk("No default or English resources; manual source selection is required")
     output_dir = root / "res" / "values-ar"
     output_dir.mkdir(exist_ok=True)
+    arabic = {}
     for source_dir in preferred:
         for source_file in sorted(source_dir.glob("*.xml")):
             try:
@@ -63,12 +66,12 @@ def translate_resources(root, translator, report):
                 existing = ET.parse(out_file) if out_file.exists() else ET.ElementTree(ET.Element("resources"))
             except ET.ParseError:
                 raise UnsupportedApk("Malformed existing Arabic resource file")
-            before = report["translated_strings"]
+            changed_file = False
             for element in parsed.getroot():
                 if element.tag not in RESOURCE_TAGS or element.get("translatable") == "false":
                     continue
-                translated = deepcopy(element)
-                nodes = [translated] if translated.tag == "string" else list(translated)
+                localized = deepcopy(element)
+                nodes = [localized] if localized.tag == "string" else list(localized)
                 changed = False
                 for node in nodes:
                     if list(node):
@@ -84,11 +87,45 @@ def translate_resources(root, translator, report):
                         changed = True
                         report["translated_strings"] += 1
                 if changed:
-                    append_localized(existing.getroot(), translated)
-            if report["translated_strings"] > before:
+                    key = (localized.tag, localized.attrib.get("name"))
+                    arabic[key] = deepcopy(localized)
+                    append_localized(existing.getroot(), localized)
+                    # Writing Arabic to default resources makes localization effective
+                    # even when the device's default language is not Arabic.
+                    element.text = localized.text
+                    element[:] = [deepcopy(child) for child in localized]
+                    changed_file = True
+            if changed_file:
+                write_xml(parsed, source_file)
                 write_xml(existing, out_file)
-    if not report["translated_strings"]:
+    if not arabic:
         report["warnings"].append("No translatable default resource strings found")
+        return
+    report["rewritten_locale_entries"] = 0
+    for source_dir in values:
+        if source_dir in preferred:
+            continue
+        for source_file in sorted(source_dir.glob("*.xml")):
+            try:
+                parsed = ET.parse(source_file)
+            except ET.ParseError:
+                report["warnings"].append("Skipped locale XML: " + source_file.name)
+                continue
+            dirty = False
+            for element in parsed.getroot():
+                if element.get("translatable") == "false":
+                    continue
+                candidate = arabic.get((element.tag, element.attrib.get("name")))
+                if candidate is None:
+                    continue
+                element.text = candidate.text
+                element[:] = [deepcopy(child) for child in candidate]
+                dirty = True
+                report["rewritten_locale_entries"] += 1
+            if dirty:
+                write_xml(parsed, source_file)
+    report["warnings"].append(
+        "Locale-specific strings missing from the default resource set require manual audit.")
 
 def rewrite_direction(value):
     # RTL-relative properties mirror correctly on Android; raw absolute coordinates cannot be fixed safely.

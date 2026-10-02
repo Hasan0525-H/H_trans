@@ -38,7 +38,7 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
         else ServerConnection(ServerPhase.UNCONFIGURED, "يلزم إعداد خادم التعريب أولاً")
     )
     val connection = _connection.asStateFlow()
-    fun hasServerConfiguration(): Boolean = config.endpoints().isNotEmpty()
+    fun hasServerConfiguration(): Boolean = config.eligibleEndpoints().isNotEmpty()
 
     init {
         if (hasServerConfiguration()) testConnection()

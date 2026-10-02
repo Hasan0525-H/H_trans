@@ -88,6 +88,7 @@ jobs:
       - name: Decode / translate / rebuild / sign / verify real fixture APK
         env:
           PYTHONPATH: backend
-          ZIPALIGN: ${{ env.ANDROID_HOME }}/build-tools/35.0.0/zipalign
-          APKSIGNER: ${{ env.ANDROID_HOME }}/build-tools/35.0.0/apksigner
-        run: python backend/tests/smoke_real_apk.py fixture/build/outputs/apk/debug/fixture-debug.apk
+        run: |
+          export ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          export APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          python backend/tests/smoke_real_apk.py fixture/build/outputs/apk/debug/fixture-debug.apk

@@ -126,7 +126,7 @@ private fun SummaryCard(label: String, value: String,
 @Composable
 fun ConversionCard(item: Conversion, onClick: () -> Unit,
                    onDelete: (() -> Unit)? = null) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth(),
+    ElevatedCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.padding(14.dp),

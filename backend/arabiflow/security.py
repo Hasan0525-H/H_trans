@@ -1,5 +1,6 @@
 """Strict archive preflight before invoking apktool on untrusted input."""
 from pathlib import PurePosixPath
+import stat
 from zipfile import ZipFile, BadZipFile
 
 MAX_UPLOAD = 512 * 1024 * 1024
@@ -24,6 +25,8 @@ def inspect_apk(path):
                         or ".." in normalized.parts or ":" in name
                         or entry.flag_bits & 1):
                     raise UnsupportedApk("Unsafe or encrypted ZIP member")
+                if stat.S_IFMT(entry.external_attr >> 16) == stat.S_IFLNK:
+                    raise UnsupportedApk("ZIP symbolic links are not allowed")
                 total += entry.file_size
                 if total > MAX_UNCOMPRESSED:
                     raise UnsupportedApk("Uncompressed size limit exceeded")

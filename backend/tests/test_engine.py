@@ -54,3 +54,19 @@ def test_translation_and_direction(tmp_path):
     assert parsed.get("{" + ANDROID + "}paddingStart") == "8dp"
     assert parsed.get("{" + ANDROID + "}layoutDirection") == "rtl"
     assert report["translated_strings"] == 1 and report["hardcoded_xml_strings"] == 1
+
+
+def test_preflight_rejects_symlink(tmp_path):
+    import stat
+    from zipfile import ZipInfo
+    path = tmp_path / "symlink.apk"
+    link = ZipInfo("assets/link")
+    link.create_system = 3
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+    with ZipFile(path, "w") as z:
+        z.writestr("AndroidManifest.xml", b"test")
+        z.writestr("resources.arsc", b"test")
+        z.writestr("classes.dex", b"test")
+        z.writestr(link, "target")
+    with pytest.raises(UnsupportedApk):
+        inspect_apk(path)

@@ -7,6 +7,8 @@ import os
 import shutil
 import tempfile
 import uuid
+import asyncio
+import time
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -18,6 +20,29 @@ _pool = ThreadPoolExecutor(max_workers=2)
 _lock = Lock()
 _jobs = {}
 OUTPUT_ROOT = Path(os.getenv("ARABIFLOW_OUTPUT_DIR", tempfile.gettempdir() + "/arabiflow-results"))
+RESULT_TTL_SECONDS = 24 * 3600
+
+async def cleanup_expired():
+    while True:
+        await asyncio.sleep(3600)
+        now = time.time()
+        with _lock:
+            expired = [key for key, job in _jobs.items()
+                       if job["status"] in ("completed", "failed")
+                       and now - job.get("created_at", now) > RESULT_TTL_SECONDS]
+            removed = [_jobs.pop(key) for key in expired]
+        for job in removed:
+            if job.get("output"):
+                Path(job["output"]).unlink(missing_ok=True)
+        if OUTPUT_ROOT.exists():
+            for path in OUTPUT_ROOT.glob("*.apk"):
+                if now - path.stat().st_mtime > RESULT_TTL_SECONDS:
+                    path.unlink(missing_ok=True)
+
+@app.on_event("startup")
+async def start_cleanup():
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    asyncio.create_task(cleanup_expired())
 
 def authenticate(authorization):
     secret = os.getenv("ARABIFLOW_API_TOKEN", "")
@@ -78,7 +103,7 @@ async def create_job(apk: UploadFile = File(...), authorization: str | None = He
             raise HTTPException(422, str(exc)) from exc
         OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
         with _lock:
-            _jobs[job_id] = {"id": job_id, "status": "queued", "stage": "Queued",
+            _jobs[job_id] = {"id": job_id, "status": "queued", "stage": "Queued", "created_at": time.time(),
                              "progress": 0, "input_bytes": total, "preflight": preflight,
                              "error": None, "report": None}
         _pool.submit(run_job, job_id, original, working_dir)

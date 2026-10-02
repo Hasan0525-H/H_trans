@@ -88,6 +88,9 @@ class ServerConfig(context: Context) {
         require(validateOrigin(normalized)) {
             "استخدم HTTPS أو http://127.0.0.1:8000 عند التوصيل المحلي عبر USB"
         }
+        require(allowRemote || normalized.startsWith("http://127.0.0.1:")) {
+            "الوضع المجاني يمنع إضافة خوادم خارجية؛ استخدم USB والمحرك المحلي."
+        }
         require(secret.isNotBlank()) { "رمز الوصول مطلوب لهذا الخادم" }
         val next = (listOf(ServerEndpoint(normalized, secret.trim())) +
             endpoints().filterNot { it.url == normalized }).take(4)

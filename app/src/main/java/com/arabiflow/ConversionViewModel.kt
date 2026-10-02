@@ -32,13 +32,27 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
     private val wm = WorkManager.getInstance(app)
     val history: Flow<List<Conversion>> = dao.observeAll()
     val config = ServerConfig(app)
+    private val serverConnector = ServerAutoConnector()
     private val _connection = MutableStateFlow(
-        if (hasServerConfiguration()) ServerConnection(ServerPhase.UNVERIFIED, "التحقق مطلوب قبل بدء التحويل")
+        if (hasServerConfiguration()) ServerConnection(ServerPhase.UNVERIFIED, "سيجري اختيار خادم موثوق تلقائيًا")
         else ServerConnection(ServerPhase.UNCONFIGURED, "يلزم إعداد خادم التعريب أولاً")
     )
     val connection = _connection.asStateFlow()
-    fun hasServerConfiguration(): Boolean =
-        config.url.startsWith("https://") && config.token.isNotBlank()
+    fun hasServerConfiguration(): Boolean = config.endpoints().isNotEmpty()
+
+    init {
+        if (hasServerConfiguration()) testConnection()
+    }
+
+    fun registeredServers(): List<ServerEndpoint> = config.endpoints()
+
+    fun removeServer(address: String) {
+        config.removeEndpoint(address)
+        _connection.value = if (hasServerConfiguration())
+            ServerConnection(ServerPhase.UNVERIFIED, "اختر اتصالًا تلقائيًا لتحديث الخادم")
+        else ServerConnection(ServerPhase.UNCONFIGURED, "لم يتم تسجيل أي خادم")
+        if (hasServerConfiguration()) testConnection()
+    }
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
     fun consumeMessage() { _message.value = null }
@@ -232,72 +246,43 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Adds one trusted backend, rather than overwriting unrelated endpoint credentials. */
     fun saveSettings(url: String, token: String) {
-        val parsed = Uri.parse(url.trim())
-        if (parsed.scheme != "https" || parsed.host.isNullOrBlank()) {
-            _message.value = "أدخل عنوان HTTPS صحيحًا للخادم"
-            return
+        try {
+            config.addEndpoint(url, token)
+            _connection.value = ServerConnection(ServerPhase.UNVERIFIED,
+                "تم حفظ الخادم؛ جاري اختبار كل الخوادم المصرح بها")
+            testConnection()
+        } catch (e: IllegalArgumentException) {
+            _message.value = e.message ?: "بيانات الخادم غير صالحة"
         }
-        if (token.isBlank()) {
-            _message.value = "أدخل رمز الوصول الذي أنشأته على الخادم"
-            return
-        }
-        config.url = url.trim().trimEnd('/')
-        config.token = token.trim()
-        _connection.value = ServerConnection(ServerPhase.UNVERIFIED, "الإعدادات محفوظة؛ جاري اختبار الخادم")
-        testConnection()
     }
 
     fun testConnection() {
         viewModelScope.launch { probeServer() }
     }
 
-    /** Do not upload APKs or create WorkManager tasks before authenticated readiness passes. */
+    /** Automatic failover only among explicitly saved origins, before upload. */
     private suspend fun probeServer(): Boolean {
         if (!hasServerConfiguration()) {
             _connection.value = ServerConnection(ServerPhase.UNCONFIGURED,
-                "لم يُجهَّز خادم التعريب. يجب تشغيل الخادم وإضافة عنوانه ورمز وصوله هنا.")
-            _message.value = "أعدّ الخادم قبل استيراد APK؛ التطبيق لا يتضمن خادمًا مستضافًا."
+                "لا يوجد خادم معالجة مفوّض. أضف عنوان خادم موثوقًا به مرة واحدة.")
+            _message.value = "أضف خادمًا موثوقًا به لتفعيل التعريب."
             return false
         }
-        _connection.value = ServerConnection(ServerPhase.CHECKING, "جاري التحقق من اتصال الخادم وتجهيز أدواته")
-        val result = withContext(Dispatchers.IO) {
-            try {
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(8, TimeUnit.SECONDS)
-                    .callTimeout(15, TimeUnit.SECONDS).build()
-                val request = Request.Builder().url(config.url + "/ready")
-                    .header("Authorization", "Bearer " + config.token).get().build()
-                client.newCall(request).execute().use { response ->
-                    when (response.code) {
-                        200 -> {
-                            val payload = org.json.JSONObject(response.body?.string() ?: "{}")
-                            if (payload.optBoolean("ready")) {
-                                ServerConnection(ServerPhase.READY,
-                                    "تم التحقق من الخادم وإعداداته. سيتم اختبار الترجمة أثناء التحويل.")
-                            } else {
-                                val missing = payload.optJSONArray("missing")
-                                val details = if (missing != null) (0 until missing.length())
-                                    .joinToString("، ") { missing.optString(it) } else "غير معروف"
-                                ServerConnection(ServerPhase.ERROR,
-                                    "الخادم لا يملك متطلبات المعالجة: " + details)
-                            }
-                        }
-                        401, 403 -> ServerConnection(ServerPhase.ERROR,
-                            "رمز الوصول غير صحيح. استخدم نفس ARABIFLOW_API_TOKEN الموجود على الخادم.")
-                        404 -> ServerConnection(ServerPhase.ERROR,
-                            "لم يُعثر على واجهة /ready. تأكد من عنوان الخادم وتحديث نسخة المعالجة.")
-                        else -> ServerConnection(ServerPhase.ERROR,
-                            "الخادم غير جاهز (HTTP " + response.code + "). راجع سجل الخادم.")
-                    }
-                }
-            } catch (ex: Exception) {
-                ServerConnection(ServerPhase.ERROR,
-                    "تعذّر الاتصال بالخادم عبر HTTPS. تحقق من العنوان والإنترنت وشهادة الأمان.")
-            }
+        _connection.value = ServerConnection(ServerPhase.CHECKING,
+            "جاري العثور على خادم جاهز من القائمة الموثوقة")
+        val result = serverConnector.discover(config)
+        val endpoint = result.endpoint
+        if (endpoint != null) {
+            config.activate(endpoint)
+            _connection.value = ServerConnection(ServerPhase.READY,
+                "متصل تلقائيًا: " + endpoint.url)
+            return true
         }
-        _connection.value = result
-        if (result.phase != ServerPhase.READY) _message.value = result.detail
-        return result.phase == ServerPhase.READY
+        _connection.value = ServerConnection(ServerPhase.ERROR,
+            result.reason.ifBlank { "جميع الخوادم المسجلة غير متاحة حاليًا" })
+        _message.value = "لم يتوفر أي خادم مفوّض وجاهز. يمكنك الاستمرار بالتحليل المحلي."
+        return false
     }
 }

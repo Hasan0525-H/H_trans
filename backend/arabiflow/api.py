@@ -81,9 +81,48 @@ def run_job(job_id, path, working_dir):
 def health():
     return {"status": "up"}
 
+def missing_requirements():
+    """Check local configuration only. This is not an end-to-end translation test."""
+    missing = []
+    for key, fallback in (
+        ("APKTOOL", "apktool"), ("ZIPALIGN", "zipalign"),
+        ("APKSIGNER", "apksigner"), ("KEYTOOL", "keytool")
+    ):
+        if not shutil.which(os.getenv(key, fallback)):
+            missing.append(key)
+    mode = os.getenv("TRANSLATION_PROVIDER", "libre")
+    if mode == "openai_compatible":
+        endpoint = os.getenv("AI_BASE_URL", "")
+        if not endpoint.startswith("https://"):
+            missing.append("AI_BASE_URL")
+        if not os.getenv("AI_MODEL"):
+            missing.append("AI_MODEL")
+        if not os.getenv("AI_API_KEY"):
+            missing.append("AI_API_KEY")
+    elif mode == "libre":
+        endpoint = os.getenv("LIBRETRANSLATE_URL", "")
+        if not endpoint.startswith("https://"):
+            missing.append("LIBRETRANSLATE_URL")
+    else:
+        missing.append("TRANSLATION_PROVIDER")
+    return missing
+
+
+@app.get("/ready")
+def ready(authorization: str | None = Header(None)):
+    authenticate(authorization)
+    missing = missing_requirements()
+    return {"ready": not missing, "missing": missing,
+            "note": "Configuration only; translation provider availability is not tested"}
+
+
+
 @app.post("/jobs", status_code=202)
 async def create_job(apk: UploadFile = File(...), authorization: str | None = Header(None)):
     authenticate(authorization)
+    missing = missing_requirements()
+    if missing:
+        raise HTTPException(503, "Backend prerequisites missing: " + ", ".join(missing))
     working_dir = tempfile.mkdtemp(prefix="arabiflow-")
     job_id = uuid.uuid4().hex
     original = Path(working_dir) / "input.apk"

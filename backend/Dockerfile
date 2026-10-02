@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 \
     ANDROID_HOME=/opt/android-sdk ANDROID_SDK_ROOT=/opt/android-sdk \
-    TMPDIR=/srv/work ARABIFLOW_OUTPUT_DIR=/srv/out \
+    ARABIFLOW_OUTPUT_DIR=/srv/out \
     ZIPALIGN=/opt/android-sdk/build-tools/35.0.0/zipalign \
     APKSIGNER=/opt/android-sdk/build-tools/35.0.0/apksigner
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,6 +13,8 @@ RUN mkdir -p /opt/android-sdk/cmdline-tools /srv/work /srv/out \
     && unzip -q /tmp/sdk.zip -d /tmp/sdk-unpack \
     && mv /tmp/sdk-unpack/cmdline-tools /opt/android-sdk/cmdline-tools/latest \
     && rm -rf /tmp/sdk.zip /tmp/sdk-unpack
+# Set TMPDIR only after the service-owned work directory actually exists.
+ENV TMPDIR=/srv/work
 ENV PATH="/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:$PATH"
 RUN yes | sdkmanager --sdk_root=/opt/android-sdk --licenses > /dev/null \
     && sdkmanager --sdk_root=/opt/android-sdk "build-tools;35.0.0"

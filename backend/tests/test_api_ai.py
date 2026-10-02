@@ -111,3 +111,15 @@ def test_readiness_verifies_arabic_response_without_user_text(monkeypatch):
         headers={"Authorization": "Bearer a-secret"})
     assert response.json()["ready"] is True
     assert seen == [("Hello", "en")]
+
+
+def test_internal_docker_translator_is_explicit_only(monkeypatch):
+    from arabiflow.translator import Translator, TranslationError
+    monkeypatch.delenv("LOCAL_TRANSLATION_CONTAINER", raising=False)
+    with __import__("pytest").raises(TranslationError):
+        Translator(url="http://libretranslate:5000")
+    monkeypatch.setenv("LOCAL_TRANSLATION_CONTAINER", "1")
+    translator = Translator(url="http://libretranslate:5000")
+    assert translator.url == "http://libretranslate:5000"
+    with __import__("pytest").raises(TranslationError):
+        Translator(url="http://untrusted-remote:5000")

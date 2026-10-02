@@ -4,6 +4,12 @@ Android APK Arabic localization client with **real offline APK archive inspectio
 
 **Important:** Rebuilt APKs have a different signature. This cannot update apps signed by other developers, and no engine can guarantee translation of all runtime or hardcoded UI. Only process packages you own or have permission to modify. APK uploads go only to the service URL that you configure.
 
+## Zero-subscription local setup
+
+To avoid paid cloud providers completely, use the [free local Docker Compose setup](local/README.md) on your own PC. It runs our existing APK backend together with the open-source LibreTranslate engine. Connect your Android phone over USB using `adb reverse`, and configure `http://127.0.0.1:8000` with the locally generated bearer token. This uses no paid API or paid server, although your computer, electricity, storage and any network downloads are your responsibility. It is **not** a fully phone-only converter.
+
+The earlier Railway project is **not free without limitations**, is not used by the local mode and may incur account charges: stop it separately if you require strictly no hosting spend. No paid cloud integration is required by the Android app.
+
 ## How the application works
 
 1. Tap **فحص APK محليًا** to import an APK and inspect archive entries, DEX count, resource path candidates, package name, version, and signing-certificate fingerprint locally. No upload is performed during inspection.

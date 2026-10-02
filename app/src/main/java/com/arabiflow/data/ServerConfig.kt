@@ -78,7 +78,7 @@ class ServerConfig(context: Context) {
     fun addEndpoint(address: String, secret: String) {
         val normalized = address.trim().trimEnd('/')
         require(validateOrigin(normalized)) {
-            "استخدم عنوان خادم HTTPS مباشرًا دون مسار إضافي أو بيانات اعتماد بالرابط"
+            "استخدم HTTPS أو http://127.0.0.1:8000 عند التوصيل المحلي عبر USB"
         }
         require(secret.isNotBlank()) { "رمز الوصول مطلوب لهذا الخادم" }
         val next = (listOf(ServerEndpoint(normalized, secret.trim())) +
@@ -112,9 +112,10 @@ class ServerConfig(context: Context) {
     companion object {
         fun validateOrigin(address: String): Boolean {
             val url = address.toHttpUrlOrNull() ?: return false
-            return url.scheme == "https" && url.username.isEmpty() && url.password.isEmpty() &&
-                url.encodedPath == "/" && url.query == null && url.fragment == null &&
-                url.host.isNotBlank()
+            val localUsb = url.scheme == "http" && url.host == "127.0.0.1"
+            val remoteTls = url.scheme == "https" && url.host.isNotBlank()
+            return (localUsb || remoteTls) && url.username.isEmpty() && url.password.isEmpty() &&
+                url.encodedPath == "/" && url.query == null && url.fragment == null
         }
     }
 

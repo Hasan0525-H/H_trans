@@ -40,8 +40,11 @@ class Translator:
         self.url = (url or os.getenv("LIBRETRANSLATE_URL") or "").rstrip("/")
         self.key = key if key is not None else os.getenv("LIBRETRANSLATE_API_KEY", "")
         self.client = client
-        if not self.url or not self.url.startswith(("https://", "http://127.0.0.1:", "http://localhost:")):
-            raise TranslationError("Configure HTTPS LIBRETRANSLATE_URL (or localhost for development)")
+        internal_docker = (os.getenv("LOCAL_TRANSLATION_CONTAINER") == "1"
+                           and self.url == "http://libretranslate:5000")
+        if not self.url or not (self.url.startswith(("https://", "http://127.0.0.1:", "http://localhost:"))
+                                or internal_docker):
+            raise TranslationError("Configure HTTPS translation or the explicit local Docker network service")
 
     def translate(self, value, source="auto"):
         if not value.strip() or value.strip().startswith(("@", "?")):

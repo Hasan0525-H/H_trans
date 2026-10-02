@@ -13,7 +13,11 @@ The Android app does not execute Apktool on the phone. Host this opt-in service 
 
 فحص `/ready` يختبر الإعدادات المحلية ووجود Apktool وأدوات Android SDK، **ولا يضمن** وصول خدمة الترجمة الخارجية أو نجاح تعريب أي APK. لا تضع الرمز في مستودع GitHub أو رسالة عامة. لا تستخدم نطاقًا افتراضيًا باعتباره خادمًا حقيقيًا.
 
-## Railway — preparing your connected account
+## No-subscription PC + USB deployment
+
+See [local/README.md](../local/README.md) for the owner-hosted Docker Compose version. It uses LibreTranslate privately through the internal Docker network and binds the backend to the PC loopback interface only. The authenticated readiness endpoint checks a small fixed live Arabic translation before accepting uploaded APKs.
+
+## Railway — optional paid cloud hosting (not part of free local mode)
 
 This repository is ready for a **private Railway service**; uploading an APK requires a trusted service, not a random internet endpoint. Once the Railway project is created and its own TLS hostname exists, enter the URL and a matching private token into the Android app. The app can automatically choose between up to four individually authorized servers; it cannot discover an unregistered server or provision a translation account on its own.
 

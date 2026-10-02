@@ -102,7 +102,9 @@ def missing_requirements():
             missing.append("AI_API_KEY")
     elif mode == "libre":
         endpoint = os.getenv("LIBRETRANSLATE_URL", "")
-        if not endpoint.startswith("https://"):
+        internal_docker = (os.getenv("LOCAL_TRANSLATION_CONTAINER") == "1"
+                           and endpoint.rstrip("/") == "http://libretranslate:5000")
+        if not endpoint.startswith("https://") and not internal_docker:
             missing.append("LIBRETRANSLATE_URL")
     else:
         missing.append("TRANSLATION_PROVIDER")

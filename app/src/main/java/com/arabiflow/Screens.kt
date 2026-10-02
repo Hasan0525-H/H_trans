@@ -237,7 +237,7 @@ fun EmptyState(title: String, subtitle: String) {
 @Composable
 fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
     // This is the owner-deployed HTTPS origin only; never embed bearer credentials in the APK.
-    var address by remember { mutableStateOf("https://arabiflow-backend-production.up.railway.app") }
+    var address by remember { mutableStateOf("http://127.0.0.1:8000") }
     var secret by remember { mutableStateOf("") }
     var revision by remember { mutableIntStateOf(0) }
     var pendingRemoval by remember { mutableStateOf<String?>(null) }
@@ -251,7 +251,7 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
             Text("الاتصال التلقائي", style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black)
             Spacer(Modifier.height(7.dp))
-            Text("يختار التطبيق خادمًا جاهزًا من خوادمك المسجلة تلقائيًا، وينتقل للبديل قبل رفع الملف إذا تعطل الأول.",
+            Text("لا تحتاج إلى اشتراك: يمكن ربط التطبيق بكمبيوترك عبر USB وخادم محلي مفتوح المصدر، أو اختيار HTTPS لخادم تملكه.",
                 fontSize = 13.sp, color = Muted)
         }
         item {
@@ -311,10 +311,10 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
                 Column(Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("إضافة خادم موثوق", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("أدرجت عنوان خادم Railway الخاص بالمشروع مسبقًا. انسخ رمز الوصول من متغير ARABIFLOW_API_TOKEN داخل Railway والصقه هنا مرة واحدة. لا تشارك الرمز.",
+                    Text("للتشغيل دون اشتراكات: شغّل حزمة Docker المجانية على كمبيوترك، وصِل الهاتف USB وشغّل adb reverse tcp:8000 tcp:8000 ثم أدخل رمز الوصول الذي أنشأه السكربت. لا تستخدم Railway إن كنت تشترط صفر رسوم.",
                         color = Muted, fontSize = 12.sp)
                     OutlinedTextField(value = address, onValueChange = { address = it },
-                        label = { Text("عنوان HTTPS") },
+                        label = { Text("HTTPS أو الاتصال المحلي USB") },
                         placeholder = { Text("https://your-server.example") },
                         singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = secret, onValueChange = { secret = it },
@@ -325,7 +325,7 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
                         if (com.arabiflow.data.ServerConfig.validateOrigin(address.trim().trimEnd('/')) &&
                             secret.isNotBlank()) {
                             vm.saveSettings(address, secret)
-                            address = "https://arabiflow-backend-production.up.railway.app"
+                            address = "http://127.0.0.1:8000"
                             secret = ""
                             revision++
                         } else {

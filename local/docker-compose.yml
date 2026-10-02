@@ -1,0 +1,46 @@
+# Subscription-free operation on your own computer. Nothing is published on the LAN.
+services:
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    restart: unless-stopped
+    environment:
+      LT_HOST: "0.0.0.0"
+      LT_PORT: "5000"
+      LT_LOAD_ONLY: "en,ar,es,fr,zh"
+    volumes:
+      - libretranslate_models:/home/libretranslate/.local
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
+      interval: 20s
+      timeout: 10s
+      retries: 18
+      start_period: 180s
+  arabiflow-backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      libretranslate:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      PORT: "8000"
+      ARABIFLOW_API_TOKEN: "${ARABIFLOW_API_TOKEN:?Run ./start.sh first to generate a local secret}"
+      TRANSLATION_PROVIDER: libre
+      LOCAL_TRANSLATION_CONTAINER: "1"
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+    volumes:
+      - arabiflow_results:/srv/out
+    mem_limit: 6g
+    pids_limit: 256
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  libretranslate_models:
+  arabiflow_results:

@@ -156,7 +156,12 @@ def convert(apk, workspace, final, update, translator=None, runner=run_command):
     zipalign = locate("ZIPALIGN", "zipalign")
     signer = locate("APKSIGNER", "apksigner")
     keytool = locate("KEYTOOL", "keytool")
-    if translator is None:\n        if os.getenv("TRANSLATION_PROVIDER", "libre") == "openai_compatible":\n            from .ai_translator import AITranslator\n            translator = AITranslator()\n        else:\n            translator = Translator()
+    if translator is None:
+        if os.getenv("TRANSLATION_PROVIDER", "libre") == "openai_compatible":
+            from .ai_translator import AITranslator
+            translator = AITranslator()
+        else:
+            translator = Translator()
     workspace = Path(workspace)
     decoded = workspace / "decoded"
     update(15, "Extracting resources")

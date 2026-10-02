@@ -236,7 +236,8 @@ fun EmptyState(title: String, subtitle: String) {
 
 @Composable
 fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
-    var address by remember { mutableStateOf("") }
+    // This is the owner-deployed HTTPS origin only; never embed bearer credentials in the APK.
+    var address by remember { mutableStateOf("https://arabiflow-backend-production.up.railway.app") }
     var secret by remember { mutableStateOf("") }
     var revision by remember { mutableIntStateOf(0) }
     var pendingRemoval by remember { mutableStateOf<String?>(null) }
@@ -310,7 +311,7 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
                 Column(Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("إضافة خادم موثوق", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("أدخل بيانات الخادم مرة واحدة. لكل خادم رمز منفصل، ولا يُرسَل رمز أحد الخوادم إلى الآخر.",
+                    Text("أدرجت عنوان خادم Railway الخاص بالمشروع مسبقًا. انسخ رمز الوصول من متغير ARABIFLOW_API_TOKEN داخل Railway والصقه هنا مرة واحدة. لا تشارك الرمز.",
                         color = Muted, fontSize = 12.sp)
                     OutlinedTextField(value = address, onValueChange = { address = it },
                         label = { Text("عنوان HTTPS") },
@@ -324,7 +325,7 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
                         if (com.arabiflow.data.ServerConfig.validateOrigin(address.trim().trimEnd('/')) &&
                             secret.isNotBlank()) {
                             vm.saveSettings(address, secret)
-                            address = ""
+                            address = "https://arabiflow-backend-production.up.railway.app"
                             secret = ""
                             revision++
                         } else {

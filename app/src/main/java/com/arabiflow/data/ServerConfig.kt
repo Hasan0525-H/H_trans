@@ -52,6 +52,14 @@ class ServerConfig(context: Context) {
             val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
             prefs.edit().putString("token", Base64.encodeToString(cipher.iv + ciphertext, Base64.NO_WRAP)).apply()
         }
+    // No hosted server is eligible in zero-subscription mode, even when saved by an older APK.
+    var allowRemote: Boolean
+        get() = prefs.getBoolean("allow_external_hosts", false)
+        set(value) { prefs.edit().putBoolean("allow_external_hosts", value).apply() }
+
+    fun eligibleEndpoints(): List<ServerEndpoint> =
+        endpoints().filter { allowRemote || it.url.startsWith("http://127.0.0.1:") }
+
     // Only HTTPS origins explicitly added by the owner are eligible for automatic failover.
     // The token belongs to that origin; never reuse it for a different host.
     fun endpoints(): List<ServerEndpoint> {

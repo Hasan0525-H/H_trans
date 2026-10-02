@@ -18,7 +18,7 @@ RUN yes | sdkmanager --sdk_root=/opt/android-sdk --licenses > /dev/null \
     && sdkmanager --sdk_root=/opt/android-sdk "build-tools;35.0.0"
 # Official upstream's published SHA-256 for the July 2026 release:
 # https://apktool.org/blog/apktool-3.0.3/
-RUN curl -fsSL https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_3.0.3.jar \
+RUN curl -fsSL https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar \
       -o /opt/apktool.jar \
     && echo "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423  /opt/apktool.jar" | sha256sum -c - \
     && printf '#!/bin/sh\nexec java -Xmx3g -jar /opt/apktool.jar "$@"\n' > /usr/local/bin/apktool \

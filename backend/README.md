@@ -8,7 +8,7 @@ The Android app does not execute Apktool on the phone. Host this opt-in service 
 - A trusted HTTPS translation endpoint implementing LibreTranslate's POST /translate API, and optionally its API key. Translation is an external processing service; evaluate its privacy policy before uploading proprietary content.
 - Set strong random ARABIFLOW_API_TOKEN, LIBRETRANSLATE_URL and optional LIBRETRANSLATE_API_KEY in server environment. Never commit credentials.
 
-## Development
+## AI translation (optional)\n\nTo use an OpenAI-compatible model endpoint instead of LibreTranslate, set:\n\n    TRANSLATION_PROVIDER=openai_compatible\n    AI_BASE_URL=https://your-trusted-provider.example/v1\n    AI_MODEL=your-model-id\n    AI_API_KEY=your-secret\n\nThe server uses a translation-only system instruction, passes text as data, preserves placeholder tokens, and refuses corrupted responses. An endpoint is not included: you must supply your own trusted account and credentials. The provider may process third-party intellectual property; review its terms and obtain consent. Large projects may incur substantial translation costs.\n\n## Development
 
     cd backend
     python3 -m venv .venv

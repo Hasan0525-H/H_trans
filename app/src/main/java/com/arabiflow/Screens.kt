@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,8 +35,9 @@ fun readableSize(size: Long): String = when {
 }
 
 @Composable
-fun HomeScreen(history: List<Conversion>, modifier: Modifier,
-               onImport: () -> Unit, onSelect: (String) -> Unit) {
+fun HomeScreen(history: List<Conversion>, connection: ServerConnection, modifier: Modifier,
+               onImport: () -> Unit, onSelect: (String) -> Unit,
+               onConfigure: () -> Unit, onCheckConnection: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -63,6 +65,37 @@ fun HomeScreen(history: List<Conversion>, modifier: Modifier,
                 Icon(Icons.Default.Inventory2, contentDescription = null,
                     modifier = Modifier.align(Alignment.TopEnd).padding(19.dp).size(60.dp),
                     tint = Color.White.copy(alpha = .20f))
+            }
+        }
+        if (connection.phase != ServerPhase.READY) item {
+            Card(colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Icon(Icons.Default.CloudOff, contentDescription = null, tint = Mint)
+                        Text("تجهيز التعريب", fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        if (connection.phase == ServerPhase.UNCONFIGURED)
+                            "يلزم إعداد خادم معالجة مرة واحدة قبل بدء أي تحويل."
+                        else connection.detail,
+                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Button(onClick = if (connection.phase == ServerPhase.UNCONFIGURED)
+                        onConfigure else onCheckConnection,
+                        enabled = connection.phase != ServerPhase.CHECKING,
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text(when (connection.phase) {
+                            ServerPhase.UNCONFIGURED -> "إعداد الخادم"
+                            ServerPhase.CHECKING -> "جارٍ فحص الاتصال..."
+                            else -> "فحص الاتصال"
+                        })
+                    }
+                    if (connection.phase != ServerPhase.UNCONFIGURED) {
+                        TextButton(onClick = onConfigure,
+                            modifier = Modifier.fillMaxWidth()) { Text("تعديل الإعدادات") }
+                    }
+                }
             }
         }
         item {
@@ -204,6 +237,8 @@ fun EmptyState(title: String, subtitle: String) {
 fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
     var url by remember { mutableStateOf(vm.config.url) }
     var token by remember { mutableStateOf(vm.config.token) }
+    val connection by vm.connection.collectAsState()
+    val browser = LocalUriHandler.current
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(17.dp)) {
         item {
@@ -218,8 +253,11 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
                     Icon(Icons.Default.Security, contentDescription = null,
                         tint = Mint, modifier = Modifier.size(30.dp))
                     Text("الخادم الخاص", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("تُرفع ملفات APK إلى هذا الخادم فقط عند بدء التحويل. استخدم اتصال HTTPS موثوقًا.",
+                    Text("التطبيق لا يتضمن خادمًا جاهزًا. شغّل خادم المعالجة أولاً، ثم أدخل عنوان HTTPS ورمز الوصول الذي أنشأته.",
                         color = Muted, fontSize = 12.sp)
+                    TextButton(onClick = {
+                        browser.openUri("https://github.com/Hasan0525-H/H_trans/blob/main/backend/README.md")
+                    }) { Text("طريقة تشغيل الخادم") }
                     OutlinedTextField(value = url, onValueChange = { url = it },
                         label = { Text("عنوان HTTPS") },
                         placeholder = { Text("https://api.example.com") },
@@ -231,7 +269,11 @@ fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
                     Button(onClick = { vm.saveSettings(url, token) },
                         modifier = Modifier.fillMaxWidth()) { Text("حفظ الإعدادات") }
                     OutlinedButton(onClick = { vm.testConnection() },
-                        modifier = Modifier.fillMaxWidth()) { Text("فحص الاتصال") }
+                        enabled = connection.phase != ServerPhase.CHECKING,
+                        modifier = Modifier.fillMaxWidth()) { Text("إعادة فحص الاتصال") }
+                    Text(connection.detail, fontSize = 12.sp,
+                        color = if (connection.phase == ServerPhase.ERROR)
+                            MaterialTheme.colorScheme.error else Mint)
                 }
             }
         }

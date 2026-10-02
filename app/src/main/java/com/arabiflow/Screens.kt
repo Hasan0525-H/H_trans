@@ -51,7 +51,7 @@ fun HomeScreen(history: List<Conversion>, connection: ServerConnection, modifier
                     Text("بلا حدود", fontSize = 34.sp, color = Color.White,
                         fontWeight = FontWeight.Black)
                     Spacer(Modifier.height(10.dp))
-                    Text("حوّل موارد تطبيقك إلى لغة عربية وواجهة RTL",
+                    Text("افحص APK محليًا ثم ابدأ التعريب عند تجهيز الخادم",
                         fontSize = 13.sp, color = Color.White.copy(alpha = .82f))
                     Spacer(Modifier.height(19.dp))
                     Button(onClick = onImport,
@@ -59,7 +59,7 @@ fun HomeScreen(history: List<Conversion>, connection: ServerConnection, modifier
                             containerColor = Gold, contentColor = Teal)) {
                         Icon(Icons.Default.UploadFile, contentDescription = null)
                         Spacer(Modifier.width(9.dp))
-                        Text("استيراد APK", fontWeight = FontWeight.Bold)
+                        Text("فحص APK محليًا", fontWeight = FontWeight.Bold)
                     }
                 }
                 Icon(Icons.Default.Inventory2, contentDescription = null,
@@ -78,7 +78,7 @@ fun HomeScreen(history: List<Conversion>, connection: ServerConnection, modifier
                     }
                     Text(
                         if (connection.phase == ServerPhase.UNCONFIGURED)
-                            "يلزم إعداد خادم معالجة مرة واحدة قبل بدء أي تحويل."
+                            "يمكنك فحص APK دون اتصال بالخادم. لتفعيل التعريب وإعادة بناء الملف، جهّز خادم معالجة."
                         else connection.detail,
                         fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Button(onClick = if (connection.phase == ServerPhase.UNCONFIGURED)
@@ -120,7 +120,7 @@ fun HomeScreen(history: List<Conversion>, connection: ServerConnection, modifier
                 Icon(Icons.Default.CloudUpload, contentDescription = null,
                     tint = Mint, modifier = Modifier.size(39.dp))
                 Spacer(Modifier.height(9.dp))
-                Text("اضغط للاختيار أو اسحب ملف APK إلى التطبيق",
+                Text("اختر APK لتحليله على جهازك، دون رفع الملف",
                     textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
                 Text("APK أساسي • حتى 512 ميجابايت", fontSize = 12.sp, color = Muted)
             }
@@ -175,6 +175,7 @@ fun ConversionCard(item: Conversion, onClick: () -> Unit,
                 Text(item.packageName, maxLines = 1, fontSize = 11.sp, color = Muted)
                 Text(when (item.status) {
                     "completed" -> "مكتمل • " + readableSize(item.resultBytes)
+                    "analyzed" -> "تم التحليل محليًا"
                     "failed" -> "فشل التحويل"
                     "cancelled" -> "ألغي التحويل"
                     else -> "قيد المعالجة • ${item.progress}%"

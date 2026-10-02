@@ -9,6 +9,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import com.arabiflow.data.*
+import com.arabiflow.analysis.LocalApkAnalyzer
+import org.json.JSONObject
+import org.json.JSONArray
 import com.arabiflow.work.ConversionWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -40,27 +43,75 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
     val message = _message.asStateFlow()
     fun consumeMessage() { _message.value = null }
 
-    fun importApk(uri: Uri, onCreated: (String) -> Unit, onSetupNeeded: () -> Unit) {
+    /** Import and report on a local APK even when no processing server exists. */
+    fun importApk(uri: Uri, onCreated: (String) -> Unit) {
         viewModelScope.launch {
+            try {
+                val item = withContext(Dispatchers.IO) { copyAndInspect(uri) }
+                dao.upsert(item)
+                onCreated(item.id)
+            } catch (ex: Exception) {
+                _message.value = ex.message ?: "تعذّر تحليل APK"
+            }
+        }
+    }
+
+    fun analyzeStored(old: Conversion) {
+        viewModelScope.launch {
+            try {
+                val report = withContext(Dispatchers.IO) {
+                    val source = File(old.sourcePath)
+                    val summary = LocalApkAnalyzer.inspect(source)
+                    makeLocalReport(summary)
+                }
+                dao.markAnalyzed(old.id, report)
+            } catch (ex: Exception) {
+                _message.value = ex.message ?: "تعذّر تحليل النسخة المخزنة"
+            }
+        }
+    }
+
+    /** Analysis must complete before network conversion is offered. */
+    fun startConversion(item: Conversion, onSetupNeeded: () -> Unit) {
+        viewModelScope.launch {
+            if (item.status != "analyzed") return@launch
             if (!probeServer()) {
                 onSetupNeeded()
                 return@launch
             }
-            try {
-                val item = withContext(Dispatchers.IO) { copyAndInspect(uri) }
-                dao.upsert(item)
-                val work = OneTimeWorkRequestBuilder<ConversionWorker>()
-                    .setInputData(workDataOf(ConversionWorker.KEY_ID to item.id))
-                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                    .build()
-                dao.linkWork(item.id, work.id.toString())
-                wm.enqueueUniqueWork("conversion-" + item.id, ExistingWorkPolicy.KEEP, work)
-                onCreated(item.id)
-            } catch (ex: Exception) {
-                _message.value = ex.message ?: "تعذّر استيراد الملف"
+            if (!File(item.sourcePath).isFile) {
+                _message.value = "الملف الأصلي لم يعد متاحًا"
+                return@launch
             }
+            val work = OneTimeWorkRequestBuilder<ConversionWorker>()
+                .setInputData(workDataOf(ConversionWorker.KEY_ID to item.id))
+                .setConstraints(Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build()
+            dao.linkWork(item.id, work.id.toString())
+            dao.updateStage(item.id, "queued", "بانتظار بدء المعالجة", 0)
+            wm.enqueueUniqueWork("conversion-" + item.id, ExistingWorkPolicy.KEEP, work)
         }
     }
+
+    private fun makeLocalReport(summary: com.arabiflow.analysis.LocalApkSummary): String =
+        JSONObject().apply {
+            put("mode", "offline")
+            put("entries", summary.entries)
+            put("dex_files", summary.dexFiles)
+            put("resource_files", summary.resourceFiles)
+            put("xml_path_candidates", summary.xmlCandidates)
+            put("layout_path_candidates", summary.layoutPathCandidates)
+            put("assets", summary.assets)
+            put("abi_names", JSONArray(summary.abis))
+            put("locale_path_hints", JSONArray(summary.localePathHints))
+            put("resource_table_present", summary.compiledResourcesPresent)
+            put("limitations", JSONArray(listOf(
+                "هذا فحص محلي لفهرس APK وليس فكًا لموارد resources.arsc.",
+                "عدم ظهور اللغات أو التخطيطات في مسارات ZIP لا يعني عدم وجودها.",
+                "تعريب النصوص وإعادة بناء APK يحتاجان إلى خادم المعالجة."
+            )))
+        }.toString()
 
     private fun copyAndInspect(uri: Uri): Conversion {
         var fileName = "imported.apk"
@@ -111,9 +162,12 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
             } else ""
             val packageName = info?.packageName ?: "غير معروف"
             val version = info?.versionName ?: "غير معروف"
+            val summary = LocalApkAnalyzer.inspect(destination)
             return Conversion(id = id, sourcePath = destination.absolutePath, originalName = fileName,
                 appLabel = appLabel, signingCertificateSha256 = sha,
-                packageName = packageName, version = version, originalBytes = destination.length())
+                packageName = packageName, version = version, originalBytes = destination.length(),
+                status = "analyzed", stage = "اكتمل التحليل المحلي",
+                report = makeLocalReport(summary))
         } catch (ex: Exception) {
             destination.delete()
             throw ex

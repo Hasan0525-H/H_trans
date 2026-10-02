@@ -49,6 +49,9 @@ interface ConversionDao {
     @Query("UPDATE conversions SET status='cancelled', stage='ألغى المستخدم التحويل' WHERE id=:id")
     suspend fun cancel(id: String)
 
+    @Query("UPDATE conversions SET status='analyzed', stage='اكتمل التحليل المحلي', progress=0, report=:report, error='' WHERE id=:id")
+    suspend fun markAnalyzed(id: String, report: String)
+
     @Query("UPDATE conversions SET workId=:workId WHERE id=:id")
     suspend fun linkWork(id: String, workId: String)
 

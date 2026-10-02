@@ -22,17 +22,65 @@ private val Accent = Color(0xFF15B69C)
 @Composable
 fun DetailScreen(item: Conversion, modifier: Modifier,
                  onCancel: () -> Unit, onRetry: () -> Unit,
+                 onAnalyze: () -> Unit, onStartConversion: () -> Unit,
                  onConfigure: () -> Unit, serverConfigured: Boolean,
                  onInstall: () -> Unit, onShare: () -> Unit,
                  onSave: () -> Unit, onHome: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Text(if (item.status == "completed") "اكتمل التحويل" else "حالة التحويل",
+            Text(when(item.status) {
+                "completed" -> "اكتمل التحويل"
+                "analyzed" -> "نتيجة التحليل المحلي"
+                else -> "حالة التحويل"
+            },
                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
             Text(item.originalName, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         when (item.status) {
+            "analyzed" -> {
+                item {
+                    val data = runCatching { JSONObject(item.report) }.getOrNull()
+                    Card(colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface)) {
+                        Column(Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("تحليل APK على جهازك", fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                            InfoLine("التطبيق", item.appLabel.ifBlank { item.originalName })
+                            InfoLine("اسم الحزمة", item.packageName)
+                            InfoLine("الإصدار", item.version)
+                            InfoLine("حجم APK", readableSize(item.originalBytes))
+                            InfoLine("عناصر الأرشيف", data?.optInt("entries")?.toString() ?: "—")
+                            InfoLine("ملفات DEX", data?.optInt("dex_files")?.toString() ?: "—")
+                            InfoLine("ملفات الموارد", data?.optInt("resource_files")?.toString() ?: "—")
+                            InfoLine("مرشحات XML", data?.optInt("xml_path_candidates")?.toString() ?: "—")
+                            InfoLine("مرشحات تخطيط الواجهة", data?.optInt("layout_path_candidates")?.toString() ?: "—")
+                            InfoLine("الأصول (Assets)", data?.optInt("assets")?.toString() ?: "—")
+                            val abis = data?.optJSONArray("abi_names")
+                            InfoLine("معماريات المكتبات", if (abis == null || abis.length() == 0)
+                                "غير ظاهرة" else (0 until abis.length()).joinToString("، ") { abis.optString(it) })
+                            val locales = data?.optJSONArray("locale_path_hints")
+                            InfoLine("مؤشرات اللغات", if (locales == null || locales.length() == 0)
+                                "لا تظهر في مسارات ZIP" else (0 until locales.length()).joinToString("، ") { locales.optString(it) })
+                        }
+                    }
+                }
+                item {
+                    Text("فحص فهرس الملف فقط؛ اكتشاف جميع النصوص يحتاج فك resources.arsc على الخادم.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = onStartConversion, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Translate, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("بدء التعريب وإعادة بناء APK")
+                    }
+                    if (!serverConfigured) {
+                        TextButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
+                            Text("تجهيز خادم التعريب")
+                        }
+                    }
+                }
+            }
             "completed" -> {
                 item {
                     Card(colors = CardDefaults.cardColors(
@@ -123,6 +171,9 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                             Text("إعداد خادم التعريب")
                         }
                         Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedButton(onClick = onAnalyze, modifier = Modifier.fillMaxWidth()) {
+                        Text("تحليل الملف على الجهاز دون خادم")
                     }
                     OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
                         Text("إعادة المحاولة بعد إعداد الخادم")

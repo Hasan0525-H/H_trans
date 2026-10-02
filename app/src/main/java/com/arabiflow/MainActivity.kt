@@ -101,7 +101,7 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
     val onSelect: (String) -> Unit = { selectedId = it; page = "details" }
     val onSetupNeeded: () -> Unit = { page = "settings" }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
-        if (it != null) vm.importApk(it, onSelect, onSetupNeeded)
+        if (it != null) vm.importApk(it, onSelect)
     }
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")) { uri ->
@@ -109,7 +109,7 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
     }
     LaunchedEffect(dropped) {
         if (dropped != null) {
-            vm.importApk(dropped, onSelect, onSetupNeeded)
+            vm.importApk(dropped, onSelect)
             onDropHandled()
         }
     }
@@ -139,10 +139,7 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
         val modifier = Modifier.padding(inset)
         when (page) {
             "home" -> HomeScreen(history, connection, modifier,
-                onImport = {
-                    if (vm.hasServerConfiguration()) importer.launch(arrayOf("*/*"))
-                    else onSetupNeeded()
-                },
+                onImport = { importer.launch(arrayOf("*/*")) },
                 onSelect = onSelect, onConfigure = onSetupNeeded,
                 onCheckConnection = vm::testConnection)
             "history" -> HistoryScreen(history, modifier, onSelect, vm::delete)
@@ -151,6 +148,8 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
                 if (selected != null) DetailScreen(selected, modifier,
                     onCancel = { vm.cancel(selected) },
                     onRetry = { vm.retry(selected, onSelect, onSetupNeeded) },
+                    onAnalyze = { vm.analyzeStored(selected) },
+                    onStartConversion = { vm.startConversion(selected, onSetupNeeded) },
                     onConfigure = onSetupNeeded,
                     serverConfigured = vm.hasServerConfiguration(),
                     onInstall = { onInstall(selected) },

@@ -2,13 +2,35 @@
 
 The Android app does not execute Apktool on the phone. Host this opt-in service under a **trusted HTTPS URL**, configure that URL and its bearer token inside the app, and only process APKs that you may lawfully modify. Production deployments must isolate the container and enforce TLS, upload caps, authentication, quotas, filesystem cleanup and request-rate limiting.
 
+## إعداد الخادم لتشغيل التطبيق
+
+لا يتضمن APK خادمًا مجانيًا جاهزًا. ستحتاج خادم Linux/Docker تملكه وعنوان HTTPS، بالإضافة إلى مزوّد ترجمة. هذا الإعداد يُجرى مرة واحدة:
+
+1. انشر هذا المجلد على خادمك مع Docker وثبّت شهادة HTTPS على نطاقك.
+2. أنشئ رمزًا سريًا عشوائيًا لـ `ARABIFLOW_API_TOKEN` وأضف عنوان مزوّد الترجمة ومفتاحه بحسب النوع.
+3. افتح تطبيق ArabiFlow AI ← الإعدادات، وأدخل رابط الخادم بصيغة `https://...` والرمز نفسه.
+4. اضغط «حفظ الإعدادات». سيرسل التطبيق طلبًا محميًا إلى `/ready` قبل السماح بأي رفع ملف.
+
+فحص `/ready` يختبر الإعدادات المحلية ووجود Apktool وأدوات Android SDK، **ولا يضمن** وصول خدمة الترجمة الخارجية أو نجاح تعريب أي APK. لا تضع الرمز في مستودع GitHub أو رسالة عامة. لا تستخدم نطاقًا افتراضيًا باعتباره خادمًا حقيقيًا.
+
 ## Prerequisites
 
 - Docker or Linux with Python 3.12, Java 21, Apktool **3.0.3**, Android SDK build tools 35 (zipalign + apksigner), keytool.
 - A trusted HTTPS translation endpoint implementing LibreTranslate's POST /translate API, and optionally its API key. Translation is an external processing service; evaluate its privacy policy before uploading proprietary content.
 - Set strong random ARABIFLOW_API_TOKEN, LIBRETRANSLATE_URL and optional LIBRETRANSLATE_API_KEY in server environment. Never commit credentials.
 
-## AI translation (optional)\n\nTo use an OpenAI-compatible model endpoint instead of LibreTranslate, set:\n\n    TRANSLATION_PROVIDER=openai_compatible\n    AI_BASE_URL=https://your-trusted-provider.example/v1\n    AI_MODEL=your-model-id\n    AI_API_KEY=your-secret\n\nThe server uses a translation-only system instruction, passes text as data, preserves placeholder tokens, and refuses corrupted responses. An endpoint is not included: you must supply your own trusted account and credentials. The provider may process third-party intellectual property; review its terms and obtain consent. Large projects may incur substantial translation costs.\n\n## Development
+## AI translation (optional)
+
+To use an OpenAI-compatible model endpoint instead of LibreTranslate, set:
+
+    TRANSLATION_PROVIDER=openai_compatible
+    AI_BASE_URL=https://your-trusted-provider.example/v1
+    AI_MODEL=your-model-id
+    AI_API_KEY=your-secret
+
+The server uses a translation-only system instruction, passes text as data, preserves placeholder tokens, and refuses corrupted responses. An endpoint is not included: you must supply your own trusted account and credentials. The provider may process third-party intellectual property; review its terms and obtain consent. Large projects may incur substantial translation costs.
+
+## Development
 
     cd backend
     python3 -m venv .venv
@@ -32,11 +54,14 @@ Configure Caddy/nginx with a valid certificate for the public domain, proxy to l
 
 ## API
 
-- GET /health: connectivity only, no sensitive metadata
+- GET /health: liveness only, no sensitive metadata
+- GET /ready: bearer-authenticated prerequisite check; does not test a real translation
 - POST /jobs: authenticated multipart upload under form name apk; returns {id,status}
 - GET /jobs/{id}: authenticated progress 0–100, diagnostic status/report
 - GET /jobs/{id}/download: authenticated signed APK once completed
 - DELETE /jobs/{id}: authenticated cleanup for completed or failed jobs
+
+Do not interpret /health as proof that tools or translation are configured. The Android client checks /ready before a conversion.
 
 All authenticated calls require Authorization: Bearer <token>. Jobs are currently stored in process memory: use one backend worker; an instance restart interrupts active jobs and invalidates their IDs. For high availability, replace the in-memory scheduler with a durable queue and object storage.
 

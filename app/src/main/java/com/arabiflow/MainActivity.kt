@@ -93,13 +93,15 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
                         onInstall: (Conversion) -> Unit, onShare: (Conversion) -> Unit) {
     val history by vm.history.collectAsState(initial = emptyList())
     val feedback by vm.message.collectAsState()
+    val connection by vm.connection.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var page by rememberSaveable { mutableStateOf("home") }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     val selected = history.firstOrNull { it.id == selectedId }
     val onSelect: (String) -> Unit = { selectedId = it; page = "details" }
+    val onSetupNeeded: () -> Unit = { page = "settings" }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {
-        if (it != null) vm.importApk(it, onSelect)
+        if (it != null) vm.importApk(it, onSelect, onSetupNeeded)
     }
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")) { uri ->
@@ -107,7 +109,7 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
     }
     LaunchedEffect(dropped) {
         if (dropped != null) {
-            vm.importApk(dropped, onSelect)
+            vm.importApk(dropped, onSelect, onSetupNeeded)
             onDropHandled()
         }
     }
@@ -136,13 +138,21 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
     ) { inset ->
         val modifier = Modifier.padding(inset)
         when (page) {
-            "home" -> HomeScreen(history, modifier, { importer.launch(arrayOf("*/*")) }, onSelect)
+            "home" -> HomeScreen(history, connection, modifier,
+                onImport = {
+                    if (vm.hasServerConfiguration()) importer.launch(arrayOf("*/*"))
+                    else onSetupNeeded()
+                },
+                onSelect = onSelect, onConfigure = onSetupNeeded,
+                onCheckConnection = vm::testConnection)
             "history" -> HistoryScreen(history, modifier, onSelect, vm::delete)
             "settings" -> SettingsScreen(vm, modifier)
             else -> {
                 if (selected != null) DetailScreen(selected, modifier,
                     onCancel = { vm.cancel(selected) },
-                    onRetry = { vm.retry(selected, onSelect) },
+                    onRetry = { vm.retry(selected, onSelect, onSetupNeeded) },
+                    onConfigure = onSetupNeeded,
+                    serverConfigured = vm.hasServerConfiguration(),
                     onInstall = { onInstall(selected) },
                     onShare = { onShare(selected) },
                     onSave = { saver.launch("ArabiFlow-${selected.packageName}.apk") },

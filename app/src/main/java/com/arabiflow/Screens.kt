@@ -236,52 +236,130 @@ fun EmptyState(title: String, subtitle: String) {
 
 @Composable
 fun SettingsScreen(vm: ConversionViewModel, modifier: Modifier) {
-    var url by remember { mutableStateOf(vm.config.url) }
-    var token by remember { mutableStateOf(vm.config.token) }
+    var address by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var revision by remember { mutableIntStateOf(0) }
+    var pendingRemoval by remember { mutableStateOf<String?>(null) }
     val connection by vm.connection.collectAsState()
     val browser = LocalUriHandler.current
+    val registered = remember(revision) { vm.registeredServers() }
+
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(17.dp)) {
         item {
-            Text("إعدادات المعالجة", style = MaterialTheme.typography.headlineMedium,
+            Text("الاتصال التلقائي", style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(7.dp))
+            Text("يختار التطبيق خادمًا جاهزًا من خوادمك المسجلة تلقائيًا، وينتقل للبديل قبل رفع الملف إذا تعطل الأول.",
+                fontSize = 13.sp, color = Muted)
         }
         item {
             Card(colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                    Icon(Icons.Default.Security, contentDescription = null,
-                        tint = Mint, modifier = Modifier.size(30.dp))
-                    Text("الخادم الخاص", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("التطبيق لا يتضمن خادمًا جاهزًا. شغّل خادم المعالجة أولاً، ثم أدخل عنوان HTTPS ورمز الوصول الذي أنشأته.",
-                        color = Muted, fontSize = 12.sp)
-                    TextButton(onClick = {
-                        browser.openUri("https://github.com/Hasan0525-H/H_trans/blob/main/backend/README.md")
-                    }) { Text("طريقة تشغيل الخادم") }
-                    OutlinedTextField(value = url, onValueChange = { url = it },
-                        label = { Text("عنوان HTTPS") },
-                        placeholder = { Text("https://api.example.com") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = token, onValueChange = { token = it },
-                        label = { Text("رمز الوصول") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { vm.saveSettings(url, token) },
-                        modifier = Modifier.fillMaxWidth()) { Text("حفظ الإعدادات") }
-                    OutlinedButton(onClick = { vm.testConnection() },
-                        enabled = connection.phase != ServerPhase.CHECKING,
-                        modifier = Modifier.fillMaxWidth()) { Text("إعادة فحص الاتصال") }
-                    Text(connection.detail, fontSize = 12.sp,
+                    Icon(Icons.Default.CloudDone, contentDescription = null, tint = Mint,
+                        modifier = Modifier.size(31.dp))
+                    Text("حالة الاتصال", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Text(connection.detail,
                         color = if (connection.phase == ServerPhase.ERROR)
-                            MaterialTheme.colorScheme.error else Mint)
+                            MaterialTheme.colorScheme.error else Mint, fontSize = 13.sp)
+                    Button(onClick = vm::testConnection,
+                        enabled = connection.phase != ServerPhase.CHECKING && registered.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Sync, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (connection.phase == ServerPhase.CHECKING)
+                            "جاري اختيار الخادم" else "اتصال تلقائي")
+                    }
                 }
             }
         }
         item {
-            Text("الخصوصية وحدود التوافق", fontWeight = FontWeight.Bold)
-            Text("إعادة التوقيع تغير هوية الناشر. قد تتوقف تطبيقات محمية عن العمل بعد التعديل. لا يمكن ضمان تعريب نصوص WebView أو النصوص البرمجية الديناميكية.",
-                color = Muted, fontSize = 13.sp)
+            Text("خوادمك الموثوقة", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            if (registered.isEmpty()) {
+                Text("لم يُربط أي خادم بعد. الاستيراد والفحص المحلي يعملان دون خادم.",
+                    color = Muted, fontSize = 13.sp)
+            } else {
+                registered.forEach { endpoint ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Dns, contentDescription = null, tint = Mint)
+                        Column(Modifier.weight(1f)) {
+                            Text(endpoint.url, maxLines = 1, fontSize = 12.sp)
+                            if (connection.phase == ServerPhase.READY &&
+                                endpoint.url == vm.config.url) {
+                                Text("الخادم النشط", color = Mint, fontSize = 11.sp)
+                            }
+                        }
+                        IconButton(onClick = { pendingRemoval = endpoint.url }) {
+                            Icon(Icons.Default.DeleteOutline,
+                                contentDescription = "إزالة الخادم المسجل")
+                        }
+                    }
+                    HorizontalDivider()
+                }
+            }
         }
+        item {
+            Card(colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("إضافة خادم موثوق", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("أدخل بيانات الخادم مرة واحدة. لكل خادم رمز منفصل، ولا يُرسَل رمز أحد الخوادم إلى الآخر.",
+                        color = Muted, fontSize = 12.sp)
+                    OutlinedTextField(value = address, onValueChange = { address = it },
+                        label = { Text("عنوان HTTPS") },
+                        placeholder = { Text("https://your-server.example") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = secret, onValueChange = { secret = it },
+                        label = { Text("رمز وصول هذا الخادم") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = {
+                        if (com.arabiflow.data.ServerConfig.validateOrigin(address.trim().trimEnd('/')) &&
+                            secret.isNotBlank()) {
+                            vm.saveSettings(address, secret)
+                            address = ""
+                            secret = ""
+                            revision++
+                        } else {
+                            vm.saveSettings(address, secret) // display validation error
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("حفظ الخادم وفحصه") }
+                    TextButton(onClick = {
+                        browser.openUri("https://github.com/Hasan0525-H/H_trans/blob/main/backend/README.md")
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("إرشادات نشر خادمك")
+                    }
+                }
+            }
+        }
+        item {
+            Text("الخصوصية", fontWeight = FontWeight.Bold)
+            Text("لا يتصل التطبيق بخوادم عامة عشوائية ولا يرفع أي APK أثناء الفحص. التبديل التلقائي يحدث قبل الرفع فقط، وبعد بدء المهمة يبقى الملف على الخادم الذي قبل العملية.",
+                fontSize = 12.sp, color = Muted)
+        }
+    }
+    pendingRemoval?.let { origin ->
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = null },
+            title = { Text("إزالة الخادم؟") },
+            text = { Text("لن يتصل التطبيق تلقائيًا بهذا العنوان بعد الإزالة. لن تُحذف الملفات من الخادم نفسه.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.removeServer(origin)
+                    revision++
+                    pendingRemoval = null
+                }) { Text("إزالة") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoval = null }) { Text("إلغاء") }
+            }
+        )
     }
 }

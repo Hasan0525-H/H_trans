@@ -13,6 +13,19 @@ The Android app does not execute Apktool on the phone. Host this opt-in service 
 
 فحص `/ready` يختبر الإعدادات المحلية ووجود Apktool وأدوات Android SDK، **ولا يضمن** وصول خدمة الترجمة الخارجية أو نجاح تعريب أي APK. لا تضع الرمز في مستودع GitHub أو رسالة عامة. لا تستخدم نطاقًا افتراضيًا باعتباره خادمًا حقيقيًا.
 
+## Railway — preparing your connected account
+
+This repository is ready for a **private Railway service**; uploading an APK requires a trusted service, not a random internet endpoint. Once the Railway project is created and its own TLS hostname exists, enter the URL and a matching private token into the Android app. The app can automatically choose between up to four individually authorized servers; it cannot discover an unregistered server or provision a translation account on its own.
+
+- GitHub source: `Hasan0525-H/H_trans`, branch `main`.
+- Railway service root directory: `/backend` (not the Android repository root).
+- Config file path: `/backend/railway.toml`. It builds the backend Dockerfile and checks `/health`.
+- Environment: generate a strong, private `ARABIFLOW_API_TOKEN` inside Railway. Add `TRANSLATION_PROVIDER=libre` and a **working trusted HTTPS** `LIBRETRANSLATE_URL` (plus `LIBRETRANSLATE_API_KEY` if that translator needs a key), **or** choose `openai_compatible` with `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY`. Never commit these values or paste them into issue comments.
+- Enable Railway's generated HTTPS public domain. Add the resulting URL + the matching `ARABIFLOW_API_TOKEN` to the app's list of trusted servers once. Use a distinct token for any secondary service.
+- Allocate CPU/memory appropriate for Java decoding and 512 MiB uploads and budget for provider/API and infrastructure charges. Do not assume Railway is free. Set maximum replicas to **1** while jobs remain in process memory.
+- The health check proves the HTTP process is alive, not that localization is available. Check the authenticated `/ready` endpoint in the Android app for tools and required environment configuration. Live translation availability is only proven by a real authorized test job.
+- Railway's ephemeral filesystem may lose output artifacts and active jobs on redeploy. Do not advertise this backend as production HA without durable job storage, quotas, isolation, rate limiting and monitoring. If attaching a persistent volume, use `/srv/out` for results; job metadata still remains in memory.
+
 ## Prerequisites
 
 - Docker or Linux with Python 3.12, Java 21, Apktool **3.0.3**, Android SDK build tools 35 (zipalign + apksigner), keytool.

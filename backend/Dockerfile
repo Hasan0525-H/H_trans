@@ -32,4 +32,4 @@ RUN groupadd --system arabiflow && useradd --system --gid arabiflow --home /srv 
     && chown arabiflow:arabiflow /srv/work /srv/out
 USER arabiflow
 EXPOSE 8000
-CMD ["/opt/arabiflow/bin/uvicorn", "arabiflow.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers"]
+CMD ["sh", "-c", "exec /opt/arabiflow/bin/uvicorn arabiflow.api:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers"]

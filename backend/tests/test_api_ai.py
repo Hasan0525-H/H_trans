@@ -59,3 +59,17 @@ def test_jobs_rejected_before_upload_if_backend_not_ready(monkeypatch):
     response = client.post("/jobs", headers={"Authorization": "Bearer a-secret"},
         files={"apk": ("example.apk", b"not an apk", "application/vnd.android.package-archive")})
     assert response.status_code == 503
+
+
+def test_readiness_identifies_protocol_without_exposing_token(monkeypatch):
+    monkeypatch.setenv("ARABIFLOW_API_TOKEN", "a-secret")
+    monkeypatch.setenv("LIBRETRANSLATE_URL", "https://translator.example.invalid")
+    monkeypatch.setattr("arabiflow.api.shutil.which", lambda cmd: "/opt/bin/" + cmd)
+    response = TestClient(app).get("/ready",
+        headers={"Authorization": "Bearer a-secret"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["service"] == "arabiflow"
+    assert data["protocol_version"] == 1
+    assert data["ready"] is True
+    assert "a-secret" not in response.text

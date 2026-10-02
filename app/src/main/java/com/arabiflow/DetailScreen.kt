@@ -22,6 +22,7 @@ private val Accent = Color(0xFF15B69C)
 @Composable
 fun DetailScreen(item: Conversion, modifier: Modifier,
                  onCancel: () -> Unit, onRetry: () -> Unit,
+                 onConfigure: () -> Unit, serverConfigured: Boolean,
                  onInstall: () -> Unit, onShare: () -> Unit,
                  onSave: () -> Unit, onHome: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
@@ -116,8 +117,15 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-                        Text("إعادة المحاولة")
+                    if (!serverConfigured || item.error.contains("HTTPS") ||
+                        item.error.contains("رمز الوصول")) {
+                        Button(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
+                            Text("إعداد خادم التعريب")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                        Text("إعادة المحاولة بعد إعداد الخادم")
                     }
                 }
             }

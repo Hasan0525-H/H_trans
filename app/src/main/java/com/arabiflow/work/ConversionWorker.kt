@@ -11,6 +11,7 @@ import androidx.work.*
 import com.arabiflow.ArabiFlowApp
 import com.arabiflow.MainActivity
 import com.arabiflow.data.ServerConfig
+import com.arabiflow.data.ServerAutoConnector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -30,18 +31,24 @@ class ConversionWorker(context: Context, params: WorkerParameters) : CoroutineWo
     private val dao = (context.applicationContext as ArabiFlowApp).db.dao()
     private val client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.MINUTES).readTimeout(2, TimeUnit.MINUTES)
-        .callTimeout(20, TimeUnit.MINUTES).build()
+        .callTimeout(20, TimeUnit.MINUTES)
+        .followRedirects(false).followSslRedirects(false).build()
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val id = inputData.getString(KEY_ID) ?: return@withContext Result.failure()
         val source = dao.get(id) ?: return@withContext Result.failure()
         val config = ServerConfig(applicationContext)
-        val url = config.url
-        val token = config.token
-        if (!url.startsWith("https://") || token.isBlank()) {
-            dao.fail(id, "أدخل عنوان خادم HTTPS ورمز الوصول في الإعدادات.")
+        val selected = ServerAutoConnector().discover(config).endpoint
+        if (selected == null) {
+            dao.fail(id, "لا يوجد خادم موثوق وجاهز. أضف خادمًا احتياطيًا أو حاول لاحقًا.")
             return@withContext Result.failure()
         }
+        config.activate(selected)
+        // Pin this exact origin and its credential for the lifetime of a job.
+        // Do not switch during a started job; doing so would duplicate uploads or
+        // query an unrelated server using a different job identifier.
+        val url = selected.url
+        val token = selected.token
         if (!File(source.sourcePath).isFile) {
             dao.fail(id, "الملف الأصلي غير موجود")
             return@withContext Result.failure()

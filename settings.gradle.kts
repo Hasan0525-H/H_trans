@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "ArabiFlowAI"
-include(":app", ":core:model")
+include(":app", ":core:model", ":fixture")

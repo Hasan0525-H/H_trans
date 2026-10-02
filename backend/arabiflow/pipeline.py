@@ -200,6 +200,7 @@ def convert(apk, workspace, final, update, translator=None, runner=run_command):
         else:
             translator = Translator()
     workspace = Path(workspace)
+    workspace.mkdir(parents=True, exist_ok=True)
     decoded = workspace / "decoded"
     update(15, "Extracting resources")
     runner([apktool, "d", "-f", "--no-src", str(apk), "-o", str(decoded)], timeout=900)

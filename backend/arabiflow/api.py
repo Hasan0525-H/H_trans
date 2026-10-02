@@ -9,6 +9,7 @@ import tempfile
 import uuid
 import asyncio
 import time
+import re
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -82,7 +83,7 @@ def health():
     return {"status": "up"}
 
 def missing_requirements():
-    """Check local configuration only. This is not an end-to-end translation test."""
+    """Check local tools and provider configuration without user data."""
     missing = []
     for key, fallback in (
         ("APKTOOL", "apktool"), ("ZIPALIGN", "zipalign"),
@@ -108,20 +109,67 @@ def missing_requirements():
     return missing
 
 
+# An authenticated readiness request checks real translation, never an uploaded APK.
+# Keep the probe short and cache it to avoid paid-provider calls for every UI refresh.
+_translation_probe_lock = Lock()
+_translation_cache = {"signature": None, "until": 0.0, "error": None}
+
+def verify_translation():
+    mode = os.getenv("TRANSLATION_PROVIDER", "libre")
+    try:
+        if mode == "libre":
+            from .translator import Translator
+            translated = Translator().translate("Hello", source="en")
+        elif mode == "openai_compatible":
+            from .ai_translator import AITranslator
+            translated = AITranslator().translate("Hello", source="en")
+        else:
+            return "TRANSLATION_PROVIDER"
+        # Do not accept echoing services or a provider that only returns Latin text.
+        if not re.search(r"[\u0600-\u06FF]", translated):
+            return "TRANSLATION_NOT_ARABIC"
+        return None
+    except Exception:
+        # Detailed provider errors may contain sensitive endpoints or credentials.
+        return "TRANSLATION_PROVIDER_UNREACHABLE"
+
+def cached_translation_error():
+    signature = (os.getenv("TRANSLATION_PROVIDER", "libre"),
+                 os.getenv("LIBRETRANSLATE_URL", ""),
+                 os.getenv("AI_BASE_URL", ""), os.getenv("AI_MODEL", ""),
+                 os.getenv("LIBRETRANSLATE_API_KEY", ""), os.getenv("AI_API_KEY", ""))
+    with _translation_probe_lock:
+        now = time.monotonic()
+        if _translation_cache["signature"] == signature and now < _translation_cache["until"]:
+            return _translation_cache["error"]
+        error = verify_translation()
+        _translation_cache.update(signature=signature, until=now + (60 if error else 180),
+                                  error=error)
+        return error
+
+def ready_requirements():
+    missing = missing_requirements()
+    if not missing:
+        translation_error = cached_translation_error()
+        if translation_error:
+            missing.append(translation_error)
+    return missing
+
+
 @app.get("/ready")
 def ready(authorization: str | None = Header(None)):
     authenticate(authorization)
-    missing = missing_requirements()
+    missing = ready_requirements()
     return {"service": "arabiflow", "protocol_version": 1,
             "ready": not missing, "missing": missing,
-            "note": "Configuration only; translation provider availability is not tested"}
+            "note": "Verified local tools and a small live Arabic translation; individual jobs may still fail"}
 
 
 
 @app.post("/jobs", status_code=202)
 async def create_job(apk: UploadFile = File(...), authorization: str | None = Header(None)):
     authenticate(authorization)
-    missing = missing_requirements()
+    missing = ready_requirements()
     if missing:
         raise HTTPException(503, "Backend prerequisites missing: " + ", ".join(missing))
     working_dir = tempfile.mkdtemp(prefix="arabiflow-")

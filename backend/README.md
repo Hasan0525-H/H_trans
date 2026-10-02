@@ -68,13 +68,13 @@ Configure Caddy/nginx with a valid certificate for the public domain, proxy to l
 ## API
 
 - GET /health: liveness only, no sensitive metadata
-- GET /ready: bearer-authenticated prerequisite check; does not test a real translation
+- GET /ready: bearer-authenticated prerequisite check; verifies a short live Arabic translation
 - POST /jobs: authenticated multipart upload under form name apk; returns {id,status}
 - GET /jobs/{id}: authenticated progress 0–100, diagnostic status/report
 - GET /jobs/{id}/download: authenticated signed APK once completed
 - DELETE /jobs/{id}: authenticated cleanup for completed or failed jobs
 
-Do not interpret /health as proof that tools or translation are configured. The Android client checks /ready before a conversion.
+Do not interpret `/health` as proof of readiness. The Android client checks authenticated `/ready` before any APK upload. A translation account or trusted self-hosted model must still be configured.
 
 All authenticated calls require Authorization: Bearer <token>. Jobs are currently stored in process memory: use one backend worker; an instance restart interrupts active jobs and invalidates their IDs. For high availability, replace the in-memory scheduler with a durable queue and object storage.
 

@@ -84,6 +84,13 @@ class ConversionWorker(context: Context, params: WorkerParameters) : CoroutineWo
                             if (!validApk(part)) throw IOException("ملف APK الناتج غير صالح")
                             if (!part.renameTo(final)) throw IOException("تعذّر حفظ الملف النهائي")
                             val report = state.optJSONObject("report")
+                            // Remove server-side artifact after verified local persistence.
+                            try {
+                                request(url + "/jobs/" + remoteId, token, "DELETE")
+                            } catch (_: Exception) {
+                                report?.optJSONArray("warnings")?.put(
+                                    "Server artifact could not be deleted automatically; ask your server administrator.")
+                            }
                             dao.finish(id, final.absolutePath, final.length(),
                                 report?.optDouble("elapsed_seconds", 0.0) ?: 0.0,
                                 report?.toString() ?: "{}")

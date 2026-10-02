@@ -53,7 +53,9 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                         containerColor = MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.padding(19.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            InfoLine("الاسم", item.originalName)
+                            InfoLine("اسم التطبيق", item.appLabel.ifBlank { item.originalName })
+                            InfoLine("اسم الملف", item.originalName)
+                            InfoLine("بصمة توقيع المصدر", item.signingCertificateSha256.ifBlank { "غير متاحة" })
                             InfoLine("الحزمة", item.packageName)
                             InfoLine("الإصدار الأصلي", item.version)
                             InfoLine("الحجم الأصلي", readableSize(item.originalBytes))

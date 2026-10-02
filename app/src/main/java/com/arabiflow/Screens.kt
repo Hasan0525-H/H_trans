@@ -138,7 +138,7 @@ fun ConversionCard(item: Conversion, onClick: () -> Unit,
                 Icon(Icons.Default.Android, contentDescription = null, tint = Mint)
             }
             Column(Modifier.weight(1f)) {
-                Text(item.originalName, maxLines = 1, fontWeight = FontWeight.Bold)
+                Text(item.appLabel.ifBlank { item.originalName }, maxLines = 1, fontWeight = FontWeight.Bold)
                 Text(item.packageName, maxLines = 1, fontSize = 11.sp, color = Muted)
                 Text(when (item.status) {
                     "completed" -> "مكتمل • " + readableSize(item.resultBytes)

@@ -9,6 +9,8 @@ data class Conversion(
     @PrimaryKey val id: String,
     val sourcePath: String,
     val originalName: String,
+    val appLabel: String = "",
+    val signingCertificateSha256: String = "",
     val packageName: String,
     val version: String,
     val originalBytes: Long,

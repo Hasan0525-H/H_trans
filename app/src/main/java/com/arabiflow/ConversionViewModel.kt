@@ -77,11 +77,28 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
             @Suppress("DEPRECATION")
             val info = if (Build.VERSION.SDK_INT >= 33) application.packageManager
                 .getPackageArchiveInfo(destination.absolutePath,
-                    android.content.pm.PackageManager.PackageInfoFlags.of(0))
-            else application.packageManager.getPackageArchiveInfo(destination.absolutePath, 0)
+                    android.content.pm.PackageManager.PackageInfoFlags.of(android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES.toLong()))
+            else application.packageManager.getPackageArchiveInfo(destination.absolutePath,
+                if (Build.VERSION.SDK_INT >= 28) android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES else 0)
+            val appInfo = info?.applicationInfo
+            val appLabel = try {
+                if (appInfo != null) {
+                    appInfo.sourceDir = destination.absolutePath
+                    appInfo.publicSourceDir = destination.absolutePath
+                    application.packageManager.getApplicationLabel(appInfo).toString()
+                } else fileName
+            } catch (_: Exception) { fileName }
+            val sha = if (Build.VERSION.SDK_INT >= 28) {
+                val signer = info?.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+                signer?.let { bytes ->
+                    java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+                        .joinToString(":") { "%02X".format(it.toInt() and 255) }
+                } ?: ""
+            } else ""
             val packageName = info?.packageName ?: "غير معروف"
             val version = info?.versionName ?: "غير معروف"
             return Conversion(id = id, sourcePath = destination.absolutePath, originalName = fileName,
+                appLabel = appLabel, signingCertificateSha256 = sha,
                 packageName = packageName, version = version, originalBytes = destination.length())
         } catch (ex: Exception) {
             destination.delete()

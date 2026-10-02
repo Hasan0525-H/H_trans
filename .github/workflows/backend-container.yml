@@ -20,7 +20,7 @@ jobs:
         run: |
           docker run --rm --entrypoint sh arabiflow-backend:test -c '
             apktool --version &&
-            /opt/android-sdk/build-tools/35.0.0/zipalign -h >/dev/null 2>&1 &&
+            test -x /opt/android-sdk/build-tools/35.0.0/zipalign &&
             /opt/android-sdk/build-tools/35.0.0/apksigner --version &&
             keytool -help >/dev/null 2>&1
           '

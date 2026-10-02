@@ -20,6 +20,8 @@ def test_ai_provider_keeps_placeholders():
 
 def test_api_auth_and_invalid_archive(monkeypatch):
     monkeypatch.setenv("ARABIFLOW_API_TOKEN", "a-secret")
+    monkeypatch.setenv("LIBRETRANSLATE_URL", "https://translation.example.test")
+    monkeypatch.setattr("arabiflow.api.shutil.which", lambda tool: "/usr/local/bin/" + tool)
     client = TestClient(app)
     assert client.get("/health").status_code == 200
     assert client.get("/jobs/nonexistent").status_code == 401
@@ -28,3 +30,32 @@ def test_api_auth_and_invalid_archive(monkeypatch):
         files={"apk": ("sample.apk", b"this is not an apk",
                        "application/vnd.android.package-archive")})
     assert response.status_code == 422
+
+
+def test_readiness_requires_authenticated_complete_configuration(monkeypatch):
+    monkeypatch.setenv("ARABIFLOW_API_TOKEN", "a-secret")
+    monkeypatch.delenv("LIBRETRANSLATE_URL", raising=False)
+    monkeypatch.delenv("TRANSLATION_PROVIDER", raising=False)
+    monkeypatch.setattr("arabiflow.api.shutil.which", lambda tool: None)
+    client = TestClient(app)
+    auth = {"Authorization": "Bearer a-secret"}
+    assert client.get("/ready").status_code == 401
+    missing = client.get("/ready", headers=auth).json()
+    assert not missing["ready"]
+    assert "LIBRETRANSLATE_URL" in missing["missing"]
+    assert "APKTOOL" in missing["missing"]
+    monkeypatch.setenv("LIBRETRANSLATE_URL", "https://translation.example.test")
+    monkeypatch.setattr("arabiflow.api.shutil.which", lambda tool: "/opt/" + tool)
+    verified = client.get("/ready", headers=auth).json()
+    assert verified["ready"] is True
+    assert verified["missing"] == []
+
+
+def test_jobs_rejected_before_upload_if_backend_not_ready(monkeypatch):
+    monkeypatch.setenv("ARABIFLOW_API_TOKEN", "a-secret")
+    monkeypatch.delenv("LIBRETRANSLATE_URL", raising=False)
+    monkeypatch.delenv("TRANSLATION_PROVIDER", raising=False)
+    client = TestClient(app)
+    response = client.post("/jobs", headers={"Authorization": "Bearer a-secret"},
+        files={"apk": ("example.apk", b"not an apk", "application/vnd.android.package-archive")})
+    assert response.status_code == 503

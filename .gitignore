@@ -1,0 +1,17 @@
+# Android / Gradle
+.gradle/
+.idea/
+**/build/
+local.properties
+*.iml
+*.jks
+*.keystore
+# Processing secrets and artifacts
+.env
+__pycache__/
+.pytest_cache/
+*.pyc
+*.apk
+!app/src/main/assets/*.apk
+backend/output/
+backend/workspace/

@@ -16,7 +16,7 @@ class ServerAutoConnector {
         .followRedirects(false).followSslRedirects(false).build()
 
     suspend fun discover(config: ServerConfig): ServerSelection = withContext(Dispatchers.IO) {
-        ServerChooser.choose(config.endpoints(), ::probe)
+        ServerChooser.choose(config.eligibleEndpoints(), ::probe)
     }
 
     suspend fun probe(endpoint: ServerEndpoint): ProbeResult = withContext(Dispatchers.IO) {

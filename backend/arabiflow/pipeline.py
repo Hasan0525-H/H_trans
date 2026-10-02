@@ -160,7 +160,7 @@ def convert(apk, workspace, final, update, translator=None, runner=run_command):
     workspace = Path(workspace)
     decoded = workspace / "decoded"
     update(15, "Extracting resources")
-    runner([apktool, "d", "-f", str(apk), "-o", str(decoded)], timeout=900)
+    runner([apktool, "d", "-f", "--no-src", str(apk), "-o", str(decoded)], timeout=900)
     update(30, "Analyzing application")
     report["decoded_resource_xml"] = len(list((decoded / "res").glob("**/*.xml")))
     update(50, "Translating content")
@@ -176,7 +176,7 @@ def convert(apk, workspace, final, update, translator=None, runner=run_command):
     except RuntimeError:
         # One documented rebuild retry for stale/generated resource artifacts.
         report["warnings"].append("Initial rebuild failed; attempted full rebuild")
-        runner([apktool, "b", "--force-all", str(decoded), "-o", str(unsigned)], timeout=900)
+        runner([apktool, "b", "--force", str(decoded), "-o", str(unsigned)], timeout=900)
     aligned = workspace / "aligned.apk"
     runner([zipalign, "-f", "4", str(unsigned), str(aligned)], timeout=180)
     update(95, "Signing APK")

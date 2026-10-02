@@ -10,6 +10,18 @@ concurrency:
   group: verify-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  local-free-config:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate offline no-subscription Docker Compose
+        env:
+          ARABIFLOW_API_TOKEN: dummy-for-validation-only
+        run: |
+          docker compose -f local/docker-compose.yml config --quiet
+          test ! -f local/.env
+          grep -q '127.0.0.1:8000:8000' local/docker-compose.yml
+          grep -q 'http://libretranslate:5000' local/docker-compose.yml
   backend:
     runs-on: ubuntu-24.04
     steps:

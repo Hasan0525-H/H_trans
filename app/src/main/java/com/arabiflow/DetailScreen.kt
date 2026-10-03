@@ -66,7 +66,7 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                     }
                 }
                 item {
-                    Text("التحويل محلي على الهاتف. القاموس مبدئي ولن يترجم النصوص غير المعروفة.",
+                    Text("التحويل على هاتفك باستخدام ML Kit. أول استخدام يحتاج إلى Wi-Fi لتنزيل نموذج اللغة مجانًا، وبعض النصوص ستحتاج مراجعة.",
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = onStartConversion, modifier = Modifier.fillMaxWidth()) {

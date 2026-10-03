@@ -167,6 +167,17 @@ class DeviceConversionWorker(ctx: Context, params: WorkerParameters) : Coroutine
                 "فشل التحقق من توقيع APK الناتج"
             }
             LocalApkAnalyzer.inspect(staged)
+            // Repackaging must never silently change executable DEX or native code.
+            ApkPayloadIntegrity.verifyUnchangedCode(source, staged)
+            @Suppress("DEPRECATION")
+            val originalPackage = applicationContext.packageManager
+                .getPackageArchiveInfo(source.absolutePath, 0)?.packageName
+            @Suppress("DEPRECATION")
+            val rebuiltPackage = applicationContext.packageManager
+                .getPackageArchiveInfo(staged.absolutePath, 0)?.packageName
+            require(originalPackage != null && rebuiltPackage == originalPackage) {
+                "تغيّر معرف التطبيق بعد إعادة البناء؛ تم رفض النسخة حفاظًا على سلامتها"
+            }
             if (!staged.renameTo(target)) {
                 staged.copyTo(target, overwrite = true)
             }

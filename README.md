@@ -1,6 +1,6 @@
 # ArabiFlow AI
 
-Phone-only Android APK resource editor with a limited offline glossary, local RTL manifest editing, rebuild and signature verification. No server, computer, API, account or internet connection is required to run the on-device conversion. See `docs/ARCHITECTURE.md` for threat model and supported APK formats.
+Phone-only Android APK resource editor with Google ML Kit on-device neural translation, local RTL manifest editing, rebuilding and signature verification. No server, computer, paid API or account is required. Initial model downloads require Wi-Fi. See `docs/ARCHITECTURE.md` for threat model and supported APK formats.
 
 **Important:** Rebuilt APKs have a different signature. This cannot update apps signed by other developers, and no engine can guarantee translation of all runtime or hardcoded UI. Only process packages you own or have permission to modify. APK uploads go only to the service URL that you configure.
 
@@ -14,7 +14,7 @@ The earlier Railway project is **not free without limitations**, is not used by 
 
 Install the current v0.2+ Android build, import one conventional base APK and tap **بدء التعريب على الهاتف**. The app parses binary resources locally with ARSCLib, translates phrases included in a compact offline starter glossary, sets the manifest's RTL support flag, writes a modified APK and signs it with a personal key generated in Android Keystore.
 
-**Current limits:** This is a real but deliberately limited proof-of-function, **not** an offline AI model. Only known string-resource phrases are replaced. Unknown phrases, native code, text inside DEX/Compose/WebView/images, all layout mirroring, protected packages, and split APK sets are outside its coverage. It currently refuses to produce an output if it cannot translate at least one known phrase. Device-side conversions are limited to 128 MiB input to reduce out-of-memory failure; passing CI build/tests does not establish runtime compatibility on all Android phones.
+**Current limits:** This is a real but deliberately limited proof-of-function, **not** an offline AI model. ML Kit can translate supported resource-language strings after its model download, but short strings and special formatting may not translate. Unknown phrases, native code, text inside DEX/Compose/WebView/images, all layout mirroring, protected packages, and split APK sets are outside its coverage. It currently refuses to produce an output if it cannot translate at least one known phrase. Device-side conversions are limited to 128 MiB input to reduce out-of-memory failure; passing CI build/tests does not establish runtime compatibility on all Android phones.
 
 ## Archived optional backend
 

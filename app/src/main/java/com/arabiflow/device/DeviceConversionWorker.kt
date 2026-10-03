@@ -101,10 +101,14 @@ class DeviceConversionWorker(ctx: Context, params: WorkerParameters) : Coroutine
                         }
                         val expectedTokens = PlaceholderGuard.protect(sourceValue).originals
                         var replaced = false
-                        entries.forEach { entry ->
+                        // Keep non-Arabic locale values unchanged. Rewriting every locale can
+                        // corrupt language-sensitive resources or programmatic string comparisons.
+                        // Translate the default and existing Arabic configurations only.
+                        entries.filter { entry ->
+                            entry.resConfig.isDefault || entry.resConfig.language == "ar"
+                        }.forEach { entry ->
                             val original = entry.valueAsString ?: ""
                             if (original == candidate) return@forEach
-                            // Never substitute a translation with incompatible Android format arguments.
                             if (PlaceholderGuard.protect(original).originals != expectedTokens)
                                 return@forEach
                             entry.setValueAsString(candidate)

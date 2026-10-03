@@ -93,7 +93,7 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
                         onInstall: (Conversion) -> Unit, onShare: (Conversion) -> Unit) {
     val history by vm.history.collectAsState(initial = emptyList())
     val feedback by vm.message.collectAsState()
-    val connection by vm.connection.collectAsState()
+    val connection = ServerConnection(ServerPhase.READY, "كل المعالجة على الهاتف")
     val snackbar = remember { SnackbarHostState() }
     var page by rememberSaveable { mutableStateOf("home") }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -122,12 +122,12 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = { TopAppBar(title = { Text("ArabiFlow AI") },
-            actions = { TextButton(onClick = { page = "settings" }) { Text("الإعدادات") } }) },
+            actions = { TextButton(onClick = { page = "settings" }) { Text("حول") } }) },
         bottomBar = {
             NavigationBar {
                 listOf(Triple("home", "الرئيسية", Icons.Default.Home),
                     Triple("history", "السجل", Icons.Default.History),
-                    Triple("settings", "الإعدادات", Icons.Default.Settings)).forEach { (route, title, icon) ->
+                    Triple("settings", "حول", Icons.Default.Settings)).forEach { (route, title, icon) ->
                     NavigationBarItem(selected = page == route,
                         onClick = { page = route; selectedId = null },
                         icon = { Icon(icon, contentDescription = title) },
@@ -143,7 +143,7 @@ private fun ArabiFlowUI(vm: ConversionViewModel, dropped: Uri?, onDropHandled: (
                 onSelect = onSelect, onConfigure = onSetupNeeded,
                 onCheckConnection = vm::testConnection)
             "history" -> HistoryScreen(history, modifier, onSelect, vm::delete)
-            "settings" -> SettingsScreen(vm, modifier)
+            "settings" -> DeviceSettingsScreen(modifier)
             else -> {
                 if (selected != null) DetailScreen(selected, modifier,
                     onCancel = { vm.cancel(selected) },

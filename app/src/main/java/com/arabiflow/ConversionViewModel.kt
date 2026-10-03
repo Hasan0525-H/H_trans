@@ -40,9 +40,8 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
     val connection = _connection.asStateFlow()
     fun hasServerConfiguration(): Boolean = config.eligibleEndpoints().isNotEmpty()
 
-    init {
-        if (hasServerConfiguration()) testConnection()
-    }
+    // Phone-only mode never attempts background server discovery.
+
 
     fun registeredServers(): List<ServerEndpoint> = config.endpoints()
 

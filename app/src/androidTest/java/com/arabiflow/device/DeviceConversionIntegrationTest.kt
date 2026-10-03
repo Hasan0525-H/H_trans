@@ -68,8 +68,8 @@ class DeviceConversionIntegrationTest {
         // run-as exposes only this test application's APK bytes to the shell temp dir.
         val installPath = "/data/local/tmp/arabiflow-fixture-signed.apk"
         shell("run-as " + ctx.packageName + " cat " + output.absolutePath +
-              " > " + installPath)
-        val installed = shell("pm install -r " + installPath)
+              " > " + installPath + " 2>&1")
+        val installed = shell("pm install -r " + installPath + " 2>&1")
         assertTrue("PackageManager rejected localized APK: " + installed,
             installed.contains("Success"))
         try {

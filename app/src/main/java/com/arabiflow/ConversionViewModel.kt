@@ -12,7 +12,7 @@ import com.arabiflow.data.*
 import com.arabiflow.analysis.LocalApkAnalyzer
 import org.json.JSONObject
 import org.json.JSONArray
-import com.arabiflow.work.ConversionWorker
+import com.arabiflow.device.DeviceConversionWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -85,26 +85,19 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Analysis must complete before network conversion is offered. */
+    /** Uses only Android: no Wi-Fi, server, USB or account. */
     fun startConversion(item: Conversion, onSetupNeeded: () -> Unit) {
         viewModelScope.launch {
             if (item.status != "analyzed") return@launch
-            if (!probeServer()) {
-                onSetupNeeded()
-                return@launch
-            }
             if (!File(item.sourcePath).isFile) {
-                _message.value = "الملف الأصلي لم يعد متاحًا"
+                _message.value = "ملف المصدر غير موجود"
                 return@launch
             }
-            val work = OneTimeWorkRequestBuilder<ConversionWorker>()
-                .setInputData(workDataOf(ConversionWorker.KEY_ID to item.id))
-                .setConstraints(Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
+            val work = OneTimeWorkRequestBuilder<DeviceConversionWorker>()
+                .setInputData(workDataOf(DeviceConversionWorker.KEY_ID to item.id)).build()
             dao.linkWork(item.id, work.id.toString())
-            dao.updateStage(item.id, "queued", "بانتظار بدء المعالجة", 0)
-            wm.enqueueUniqueWork("conversion-" + item.id, ExistingWorkPolicy.KEEP, work)
+            dao.updateStage(item.id, "queued", "بانتظار المعالجة على الهاتف", 0)
+            wm.enqueueUniqueWork("local-" + item.id, ExistingWorkPolicy.KEEP, work)
         }
     }
 
@@ -123,7 +116,7 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
             put("limitations", JSONArray(listOf(
                 "هذا فحص محلي لفهرس APK وليس فكًا لموارد resources.arsc.",
                 "عدم ظهور اللغات أو التخطيطات في مسارات ZIP لا يعني عدم وجودها.",
-                "تعريب النصوص وإعادة بناء APK يحتاجان إلى خادم المعالجة."
+                "الترجمة المتوفرة حاليًا محدودة بالقاموس المدمج، ولن تشمل النصوص غير المعروفة."
             )))
         }.toString()
 
@@ -190,27 +183,18 @@ class ConversionViewModel(app: Application) : AndroidViewModel(app) {
 
     fun retry(old: Conversion, onCreated: (String) -> Unit, onSetupNeeded: () -> Unit) {
         viewModelScope.launch {
-            if (!probeServer()) {
-                onSetupNeeded()
-                return@launch
-            }
             if (!File(old.sourcePath).isFile) {
-                _message.value = "الملف الأصلي محذوف؛ استورده من جديد"
+                _message.value = "الملف الأصلي مفقود؛ استورده من جديد"
                 return@launch
             }
             val id = UUID.randomUUID().toString()
             val entry = old.copy(id = id, createdAt = System.currentTimeMillis(),
-                status = "queued", stage = "بانتظار المعالجة", progress = 0,
+                status = "analyzed", stage = "جاهز للمعالجة المحلية", progress = 0,
                 outputPath = null, resultBytes = 0, elapsedSeconds = 0.0,
-                error = "", report = "", workId = null)
+                error = "", workId = null)
             dao.upsert(entry)
-            val work = OneTimeWorkRequestBuilder<ConversionWorker>()
-                .setInputData(workDataOf(ConversionWorker.KEY_ID to id))
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
-            dao.linkWork(id, work.id.toString())
-            wm.enqueue(work)
             onCreated(id)
+            startConversion(entry, onSetupNeeded)
         }
     }
 

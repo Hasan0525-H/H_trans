@@ -30,8 +30,8 @@ import java.math.BigInteger
 import java.util.Date
 
 /**
- * Actual phone-only pipeline. Phase 1 uses a small bundled phrase glossary;
- * coverage is explicitly partial, not AI-generated or arbitrary-language translation.
+ * Actual phone-only pipeline. ML Kit runs neural translations on the phone after a
+ * Wi-Fi-only one-time model download. A small bundled glossary is its fallback.
  * Every successful output is newly signed and cryptographically verified.
  */
 class DeviceConversionWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
@@ -50,6 +50,8 @@ class DeviceConversionWorker(ctx: Context, params: WorkerParameters) : Coroutine
         var examined = 0
         var rtlApplied = false
         var unknown = 0
+        var modelCount = 0
+        var needsModel = false
         try {
             setForeground(foreground(5))
             progress(id, 5, "فحص APK على الهاتف")
@@ -63,33 +65,59 @@ class DeviceConversionWorker(ctx: Context, params: WorkerParameters) : Coroutine
                 if (isStopped) throw CancellationException()
                 val table = module.getTableBlock() ?: throw IllegalArgumentException(
                     "تعذّر قراءة resources.arsc على الهاتف")
-                val resources = table.getLocalResources("string")
-                while (resources.hasNext()) {
-                    if (isStopped) throw CancellationException()
-                    val resource = resources.next()
-                    val entries = resource.iterator()
-                    val original = mutableListOf<com.reandroid.arsc.value.Entry>()
-                    var candidate: String? = null
-                    while (entries.hasNext()) {
-                        val entry = entries.next()
-                        if (entry.valueType != ValueType.STRING || entry.isComplex) continue
-                        val sourceText = entry.valueAsString ?: continue
-                        original.add(entry)
-                        if (candidate == null) candidate = OfflineGlossary.translate(sourceText)
-                    }
-                    examined++
-                    if (candidate != null) {
-                        // Apply one consistent Arabic label to matching locale variants only.
-                        original.forEach { entry ->
-                            if (OfflineGlossary.translate(entry.valueAsString ?: "") != null) {
-                                entry.setValueAsString(candidate)
-                                changed++
-                            }
+                progress(id, 35, "تحميل نموذج اللغة أو استخدام النموذج المحفوظ")
+                PhoneTranslator().use { translator ->
+                    val resources = table.getLocalResources("string")
+                    while (resources.hasNext()) {
+                        if (isStopped) throw CancellationException()
+                        if (++examined > 20_000) throw IllegalArgumentException(
+                            "تجاوز التطبيق حد موارد النصوص لهذا الإصدار")
+                        val resource = resources.next()
+                        // Names such as app_name usually contain brands; do not alter them.
+                        if (resource.name in setOf("app_name", "application_name", "appName")) {
+                            unknown++
+                            continue
                         }
-                    } else unknown++
+                        val entries = resource.iterator().asSequence().filter {
+                            it.valueType == ValueType.STRING && !it.isComplex &&
+                                !it.valueAsString.isNullOrBlank()
+                        }.toList()
+                        val nativeArabic = entries.firstOrNull {
+                            it.resConfig.language == "ar" &&
+                                (it.valueAsString ?: "").any { c -> c in '\u0600'..'\u06ff' }
+                        }
+                        val primary = nativeArabic ?:
+                            entries.firstOrNull { it.resConfig.isDefault } ?: entries.firstOrNull()
+                        if (primary == null) {
+                            unknown++
+                            continue
+                        }
+                        val sourceValue = primary.valueAsString ?: ""
+                        val candidate = if (nativeArabic != null) sourceValue else
+                            translator.translate(sourceValue, primary.resConfig.language)
+                        if (candidate.isNullOrBlank() || !candidate.any { it in '\u0600'..'\u06ff' }) {
+                            unknown++
+                            continue
+                        }
+                        val expectedTokens = PlaceholderGuard.protect(sourceValue).originals
+                        var replaced = false
+                        entries.forEach { entry ->
+                            val original = entry.valueAsString ?: ""
+                            if (original == candidate) return@forEach
+                            // Never substitute a translation with incompatible Android format arguments.
+                            if (PlaceholderGuard.protect(original).originals != expectedTokens)
+                                return@forEach
+                            entry.setValueAsString(candidate)
+                            replaced = true
+                            changed++
+                        }
+                        if (!replaced) unknown++
+                    }
+                    modelCount = translator.modelTranslations
+                    needsModel = translator.modelDownloadFailed
                 }
                 if (changed == 0) throw IllegalArgumentException(
-                    "لم يجد القاموس المحلي أي نص يمكن تعريبه؛ لن أصدر APK غير معرّب")
+                    "لم أجد نصوصًا قابلة للترجمة. اتصل بشبكة Wi-Fi لتنزيل نماذج ML Kit المجانية إذا لم تكن محفوظة.")
                 progress(id, 55, "تطبيق إعدادات RTL")
                 val manifest = module.getAndroidManifest() ?: throw IllegalArgumentException(
                     "تعذّرت قراءة AndroidManifest.xml")
@@ -139,15 +167,17 @@ class DeviceConversionWorker(ctx: Context, params: WorkerParameters) : Coroutine
                 staged.copyTo(target, overwrite = true)
             }
             val report = JSONObject()
-                .put("mode", "on_device_limited_glossary")
+                .put("mode", "on_device_mlkit")
+                .put("mlkit_translations", modelCount)
+                .put("model_download_failed", needsModel)
                 .put("translated_strings", changed)
                 .put("total_resource_names", examined)
                 .put("untranslated_resource_names", unknown)
                 .put("rtl_manifest", rtlApplied)
                 .put("input_entries", scan.entries)
                 .put("limitations", JSONArray(listOf(
-                    "القاموس المحلي محدود؛ معظم النصوص غير المعروفة ستبقى بلغتها الأصلية.",
-                    "تم تعديل موارد النصوص المعروفة وتصريح RTL، وليس كل تخطيطات التطبيق أو النصوص داخل DEX أو الصور أو WebView.",
+                    "تعمل ML Kit على الهاتف بعد تنزيل النموذج عبر Wi-Fi. قد تبقى النصوص غير المعروفة أو التي فشلت حماية متغيراتها بلا ترجمة.",
+                    "الترجمة للموارد النصية وتصريح RTL فقط؛ لا تغطي DEX وCompose وWebView والصور أو التخطيطات المخصصة.",
                     "مفتاح التوقيع محلي وجديد؛ لا يمكن تحديث التطبيق الأصلي ذي التوقيع المختلف.",
                     "لم يُختبر تشغيل هذا التطبيق الناتج على جهاز المستخدم؛ بعض التطبيقات قد لا تعمل بعد التعديل."
                 )))

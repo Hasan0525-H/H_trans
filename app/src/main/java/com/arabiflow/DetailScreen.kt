@@ -66,19 +66,15 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                     }
                 }
                 item {
-                    Text("فحص فهرس الملف فقط؛ اكتشاف جميع النصوص يحتاج فك resources.arsc على الخادم.",
+                    Text("التحويل محلي على الهاتف. القاموس مبدئي ولن يترجم النصوص غير المعروفة.",
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = onStartConversion, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Translate, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("بدء التعريب وإعادة بناء APK")
+                        Text("بدء التعريب على الهاتف")
                     }
-                    if (!serverConfigured) {
-                        TextButton(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
-                            Text("تجهيز خادم التعريب")
-                        }
-                    }
+
                 }
             }
             "completed" -> {
@@ -90,8 +86,8 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                             Icon(Icons.Default.CheckCircle, contentDescription = null,
                                 modifier = Modifier.size(60.dp), tint = Accent)
                             Spacer(Modifier.height(10.dp))
-                            Text("APK جاهز", fontWeight = FontWeight.Black, fontSize = 25.sp)
-                            Text("يرجى مراجعة حدود التعريب قبل التثبيت",
+                            Text("تم التعريب الجزئي", fontWeight = FontWeight.Black, fontSize = 25.sp)
+                            Text("راجع حدود التغطية قبل التثبيت",
                                 textAlign = TextAlign.Center, fontSize = 13.sp)
                         }
                     }
@@ -114,6 +110,7 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                                 report?.optInt("translated_strings")?.toString() ?: "—")
                             InfoLine("نصوص التخطيط",
                                 report?.optInt("hardcoded_xml_strings")?.toString() ?: "—")
+                            InfoLine("أسماء موارد لم تُترجم", report?.optInt("untranslated_resource_names")?.toString() ?: "—")
                             InfoLine("تخطيطات RTL",
                                 report?.optInt("rtl_layouts")?.toString() ?: "—")
                         }
@@ -165,18 +162,11 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    if (!serverConfigured || item.error.contains("HTTPS") ||
-                        item.error.contains("رمز الوصول")) {
-                        Button(onClick = onConfigure, modifier = Modifier.fillMaxWidth()) {
-                            Text("إعداد خادم التعريب")
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
                     OutlinedButton(onClick = onAnalyze, modifier = Modifier.fillMaxWidth()) {
                         Text("تحليل الملف على الجهاز دون خادم")
                     }
                     OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
-                        Text("إعادة المحاولة بعد إعداد الخادم")
+                        Text("إعادة المحاولة محليًا")
                     }
                 }
             }
@@ -185,8 +175,8 @@ fun DetailScreen(item: Conversion, modifier: Modifier,
                     Card(colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.padding(20.dp)) {
-                            Text(if (item.status == "queued") "بانتظار الاتصال"
-                                 else Stage.fromProgress(item.progress).titleAr,
+                            Text(if (item.status == "queued") "بانتظار المعالجة المحلية"
+                                 else item.stage,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(16.dp))

@@ -53,5 +53,41 @@ class DeviceConversionIntegrationTest {
             assertTrue(module.androidManifest.applicationElement
                 .searchAttributeByName("supportsRtl").valueAsBoolean)
         } finally { module.close() }
+
+        // Signature validity is insufficient: the PackageManager must install
+        // the rewritten binary and the Activity must survive process startup.
+        val automation = androidx.test.platform.app.InstrumentationRegistry
+            .getInstrumentation().uiAutomation
+        fun shell(command: String): String {
+            return automation.executeShellCommand(command).use { fd ->
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)
+                    .bufferedReader().readText()
+            }
+        }
+        // Files under app-private storage cannot be read by the package installer.
+        // run-as exposes only this test application's APK bytes to the shell temp dir.
+        val installPath = "/data/local/tmp/arabiflow-fixture-signed.apk"
+        shell("run-as " + ctx.packageName + " cat " + output.absolutePath +
+              " > " + installPath)
+        val installed = shell("pm install -r " + installPath)
+        assertTrue("PackageManager rejected localized APK: " + installed,
+            installed.contains("Success"))
+        try {
+            shell("logcat -c")
+            val launch = shell("am start -W -n com.arabiflow.fixture/.FixtureActivity")
+            assertTrue("Could not launch localized APK: " + launch,
+                launch.contains("Status: ok") || launch.contains("Status: timeout"))
+            Thread.sleep(1200)
+            val process = shell("pidof com.arabiflow.fixture")
+            val crashes = shell("logcat -d -t 250 -s AndroidRuntime:E")
+            assertTrue("Localized APK exited after launch. Logs: " + crashes,
+                process.trim().isNotBlank())
+            assertFalse("Localized fixture crashed: " + crashes,
+                crashes.contains("FATAL EXCEPTION") &&
+                    crashes.contains("com.arabiflow.fixture"))
+        } finally {
+            shell("pm uninstall com.arabiflow.fixture")
+            shell("rm -f " + installPath)
+        }
     }
 }

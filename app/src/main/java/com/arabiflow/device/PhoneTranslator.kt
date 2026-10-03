@@ -24,7 +24,9 @@ class PhoneTranslator : Closeable {
     /** Falls back to the bundled glossary when ML models are unavailable. */
     suspend fun translate(text: String, sourceHint: String? = null): String? {
         val fallback = OfflineGlossary.translate(text)
-        if (!eligible(text)) return fallback
+        // Known short UI terms translate instantly even without a downloaded model.
+        if (fallback != null) return fallback
+        if (!eligible(text)) return null
         if (text.any { it in '\u0600'..'\u06ff' } && text.none { it in 'A'..'z' }) return null
         val source = resolveLanguage(text, sourceHint)
         if (source == TranslateLanguage.ARABIC) return null

@@ -7,7 +7,7 @@ class OfflineGlossaryTest {
     @Test fun fixedPhrasesTranslateWithoutNetworking() {
         assertEquals("الإعدادات", OfflineGlossary.translate("Settings"))
         assertEquals("مرحبًا", OfflineGlossary.translate("Welcome"))
-        assertEquals("مرحبًا، %1$s", OfflineGlossary.translate("Welcome, %1\$s"))
+        assertEquals("مرحبًا، %1\$s", OfflineGlossary.translate("Welcome, %1\$s"))
         assertEquals("الفرنسية", OfflineGlossary.translate("Français"))
         assertEquals("الإعدادات", OfflineGlossary.translate("设置"))
     }
